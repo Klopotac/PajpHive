@@ -5,7 +5,11 @@ import {
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc,
   deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, Timestamp, writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { generateInviteCode } from "./ui.js";
+
+// Inline invite code generator — avoids circular import with ui.js
+function generateInviteCode() {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
 
 function chunkArray(arr, size) {
   const out = [];
@@ -104,7 +108,6 @@ export async function deleteApiaryDeep(apiaryId) {
     remindersSnap.docs.forEach(d => addToMap(reminderRefsMap, d.ref));
   }
 
-  // Extra safety: also delete by apiaryId
   const [inspectionsByApiary, remindersByApiary] = await Promise.all([
     getDocs(query(collection(db, "inspections"), where("apiaryId", "==", apiaryId))),
     getDocs(query(collection(db, "reminders"), where("apiaryId", "==", apiaryId)))
@@ -168,7 +171,6 @@ export function listenHives(apiaryId, callback) {
 
 // ── User display names ────────────────────────────────────────────────────────
 
-// Cache resolved display names for the session to avoid repeat lookups
 const _nameCache = new Map();
 
 export async function getDisplayName(uid, currentUserUid) {
@@ -184,7 +186,6 @@ export async function getDisplayName(uid, currentUserUid) {
   }
 }
 
-// Saves user display name to Firestore so partners can look it up
 export async function saveUserProfile(uid, displayName, email) {
   await setDoc(doc(db, "users", uid), { displayName, email, updatedAt: serverTimestamp() }, { merge: true });
 }
@@ -204,26 +205,59 @@ export async function saveInspection(data) {
   return ref.id;
 }
 
+// Listen for inspections — requires composite index: hiveId ASC + createdAt DESC
+// Falls back to a simple getDocs if the index is not yet built.
 export function listenInspections(hiveId, callback) {
-  const q = query(
-    collection(db, "inspections"),
-    where("hiveId", "==", hiveId),
-    orderBy("createdAt", "desc")
+  let q;
+  try {
+    q = query(
+      collection(db, "inspections"),
+      where("hiveId", "==", hiveId),
+      orderBy("createdAt", "desc")
+    );
+  } catch (e) {
+    // Shouldn't happen at query-build time, but guard anyway
+    callback([]);
+    return () => {};
+  }
+
+  return onSnapshot(q,
+    (snap) => {
+      callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    },
+    (err) => {
+      console.warn("listenInspections error:", err.message);
+      if (err.code === "failed-precondition") {
+        // Index not ready yet — fall back to unordered getDocs
+        getDocs(query(collection(db, "inspections"), where("hiveId", "==", hiveId)))
+          .then(snap => {
+            const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            // Sort client-side by createdAt desc
+            docs.sort((a, b) => {
+              const ta = a.createdAt?.toDate?.() ?? new Date(0);
+              const tb = b.createdAt?.toDate?.() ?? new Date(0);
+              return tb - ta;
+            });
+            callback(docs);
+          })
+          .catch(() => callback([]));
+      } else {
+        callback([]);
+      }
+    }
   );
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-  });
 }
 
 // ── Reminders ─────────────────────────────────────────────────────────────────
 
 export async function addReminder(apiaryId, hiveId, text, dueDate) {
-  await addDoc(collection(db, "reminders"), {
+  const ref = await addDoc(collection(db, "reminders"), {
     apiaryId, hiveId, text,
     dueDate: Timestamp.fromDate(new Date(dueDate + "T00:00:00")),
     done: false,
     createdAt: serverTimestamp()
   });
+  return ref.id;
 }
 
 export async function deleteReminder(reminderId) {
@@ -234,13 +268,55 @@ export async function toggleReminder(reminderId, done) {
   await updateDoc(doc(db, "reminders", reminderId), { done });
 }
 
+// Listen for reminders — requires composite index: apiaryId ASC + dueDate ASC
+// Falls back to getDocs + client-side sort if the index is not yet ready.
 export function listenReminders(apiaryId, callback) {
-  const q = query(
-    collection(db, "reminders"),
-    where("apiaryId", "==", apiaryId),
-    orderBy("dueDate", "asc")
+  let q;
+  try {
+    q = query(
+      collection(db, "reminders"),
+      where("apiaryId", "==", apiaryId),
+      orderBy("dueDate", "asc")
+    );
+  } catch (e) {
+    callback([]);
+    return () => {};
+  }
+
+  return onSnapshot(q,
+    (snap) => {
+      callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    },
+    (err) => {
+      console.warn("listenReminders error:", err.message);
+      if (err.code === "failed-precondition") {
+        // Index not ready — fall back to unordered getDocs + client-side sort
+        getDocs(query(collection(db, "reminders"), where("apiaryId", "==", apiaryId)))
+          .then(snap => {
+            const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            docs.sort((a, b) => {
+              const ta = a.dueDate?.toDate?.() ?? new Date(0);
+              const tb = b.dueDate?.toDate?.() ?? new Date(0);
+              return ta - tb;
+            });
+            callback(docs);
+          })
+          .catch(() => callback([]));
+      } else {
+        callback([]);
+      }
+    }
   );
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+}
+
+// One-time fetch of reminders (no real-time — used as index-safe fallback)
+export async function getRemindersOnce(apiaryId) {
+  const snap = await getDocs(query(collection(db, "reminders"), where("apiaryId", "==", apiaryId)));
+  const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  docs.sort((a, b) => {
+    const ta = a.dueDate?.toDate?.() ?? new Date(0);
+    const tb = b.dueDate?.toDate?.() ?? new Date(0);
+    return ta - tb;
   });
+  return docs;
 }

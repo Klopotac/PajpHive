@@ -1,7 +1,347 @@
-/* HiveVoice - Minimal functional CSS only. Styling added in Phase 2. */
-.hidden { display: none; }
-.visible { display: block; }
-#recording-indicator { display: none; }
-#recording-indicator.active { display: block; }
-#sync-banner { display: none; }
+/* ═══════════════════════════════════════════════════════
+   HiveVoice — Phase 2 Styling
+   Theme: Superflat / Takashi Murakami
+   White base · Honeycomb gold · Flat & bold
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Tokens ─────────────────────────────────────────── */
+:root {
+  --white:   #ffffff;
+  --off:     #f9f9f7;
+  --black:   #111111;
+  --gold:    #ffd000;
+  --gold-dk: #e0b800;
+  --muted:   #888888;
+  --radius:  10px;
+  --font:    'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --max:     520px;
+  --nav-h:   60px;
+}
+
+/* ── Reset & Base ───────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; background: var(--white); }
+
+body {
+  font-family: var(--font);
+  color: var(--black);
+  background: var(--white);
+  max-width: var(--max);
+  margin: 0 auto;
+  padding: 24px 20px calc(var(--nav-h) + 24px);
+  line-height: 1.5;
+}
+
+/* ── Typography ─────────────────────────────────────── */
+h1 {
+  font-size: 2rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  margin-bottom: 20px;
+}
+
+h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 12px;
+}
+
+h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+h4 { font-size: 0.9rem; font-weight: 600; margin-bottom: 8px; }
+
+p { margin-bottom: 10px; font-size: 0.95rem; }
+
+a { color: var(--black); font-weight: 600; text-underline-offset: 3px; }
+a:hover { color: var(--gold-dk); }
+
+strong { font-weight: 700; }
+em { font-style: italic; color: var(--muted); font-size: 0.88rem; }
+
+/* ── Sections ───────────────────────────────────────── */
+section {
+  border-top: 2px solid var(--black);
+  padding-top: 20px;
+  margin-top: 24px;
+}
+
+/* ── Inputs ─────────────────────────────────────────── */
+input[type=text],
+input[type=email],
+input[type=password],
+input[type=date] {
+  display: block;
+  width: 100%;
+  padding: 11px 14px;
+  margin-bottom: 10px;
+  border: 2px solid var(--black);
+  border-radius: var(--radius);
+  font-family: var(--font);
+  font-size: 0.95rem;
+  background: var(--white);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+input[type=text]:focus,
+input[type=email]:focus,
+input[type=password]:focus,
+input[type=date]:focus {
+  border-color: var(--gold-dk);
+}
+
+textarea {
+  display: block;
+  width: 100%;
+  padding: 11px 14px;
+  margin-bottom: 10px;
+  border: 2px solid var(--black);
+  border-radius: var(--radius);
+  font-family: var(--font);
+  font-size: 0.95rem;
+  resize: vertical;
+  outline: none;
+  background: var(--white);
+}
+
+textarea:focus { border-color: var(--gold-dk); }
+
+label { font-size: 0.9rem; display: flex; align-items: center; gap: 8px; }
+
+input[type=checkbox] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--black);
+  flex-shrink: 0;
+}
+
+/* ── Buttons ─────────────────────────────────────────── */
+button {
+  display: inline-block;
+  padding: 10px 20px;
+  margin-bottom: 8px;
+  margin-right: 6px;
+  background: var(--gold);
+  color: var(--black);
+  border: 2px solid var(--black);
+  border-radius: var(--radius);
+  font-family: var(--font);
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.12s, transform 0.08s;
+  white-space: nowrap;
+}
+
+button:hover  { background: var(--gold-dk); }
+button:active { transform: scale(0.97); }
+button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+/* Danger buttons */
+#btn-delete-apiary,
+#btn-delete-hive {
+  background: var(--white);
+  border-color: #cc0000;
+  color: #cc0000;
+}
+#btn-delete-apiary:hover:not(:disabled),
+#btn-delete-hive:hover:not(:disabled) {
+  background: #cc0000;
+  color: var(--white);
+}
+
+/* Sign out button */
+#btn-signout {
+  background: var(--off);
+  border-color: var(--black);
+}
+
+audio { display: block; margin: 8px 0; width: 100%; }
+
+/* ── Nav ─────────────────────────────────────────────── */
+#main-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--nav-h);
+  background: var(--white);
+  border-top: 2px solid var(--black);
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  z-index: 100;
+}
+
+#main-nav a,
+#main-nav button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--black);
+  background: none;
+  border: none;
+  border-radius: 0;
+  margin: 0;
+  padding: 0;
+  border-right: 1px solid #eee;
+  letter-spacing: 0.01em;
+}
+
+#main-nav a:last-child,
+#main-nav button:last-child { border-right: none; }
+
+#main-nav a.active,
+#main-nav a:hover {
+  background: var(--gold);
+  color: var(--black);
+}
+
+/* ── Sync Banner ─────────────────────────────────────── */
+#sync-banner {
+  display: none;
+  position: sticky;
+  top: 0;
+  background: var(--gold);
+  color: var(--black);
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 8px 16px;
+  border-bottom: 2px solid var(--black);
+  z-index: 50;
+  margin: -24px -20px 20px;
+}
 #sync-banner.visible { display: block; }
+
+/* ── Recording Indicator ─────────────────────────────── */
+#recording-indicator {
+  display: none;
+  text-align: center;
+  padding: 20px;
+  margin: 16px 0;
+  background: var(--off);
+  border: 2px solid var(--black);
+  border-radius: var(--radius);
+}
+#recording-indicator.active { display: block; }
+
+#timer-display {
+  font-size: 2.5rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  margin-top: 6px;
+}
+
+/* ── Apiary Tabs ─────────────────────────────────────── */
+#apiary-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.apiary-tab {
+  background: var(--off);
+  border: 2px solid var(--black);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  padding: 6px 14px;
+  margin: 0;
+}
+
+.apiary-tab.active {
+  background: var(--gold);
+}
+
+/* ── Hive Cards ──────────────────────────────────────── */
+#hives-list > div {
+  padding: 14px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 0.92rem;
+}
+#hives-list > div:last-of-type { border-bottom: none; }
+#hives-list hr { display: none; }
+
+/* ── Inspection History ──────────────────────────────── */
+#inspections-list > div {
+  padding: 14px 0;
+  border-bottom: 1px solid #eee;
+  font-size: 0.9rem;
+}
+#inspections-list hr { display: none; }
+
+/* ── Apiary Header ───────────────────────────────────── */
+#apiary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+#apiary-header h2 { margin: 0; }
+#apiary-header button { margin: 0; }
+
+/* ── Danger Zone ─────────────────────────────────────── */
+#apiary-danger-zone,
+#hive-danger-zone {
+  border-top-color: #cc0000;
+}
+#apiary-danger-zone h2,
+#apiary-danger-zone h3,
+#hive-danger-zone h2,
+#hive-danger-zone h3 { color: #cc0000; }
+
+/* ── Invite / Notice boxes ───────────────────────────── */
+#invite-code-notice,
+#invite-code-display,
+#new-invite-code-display {
+  font-family: 'Courier New', monospace;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+#invite-code-notice {
+  background: var(--off);
+  border: 2px solid var(--black);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin: 12px 0;
+}
+
+/* ── Status / message text ───────────────────────────── */
+#msg, #save-msg, #status-msg,
+#first-apiary-msg, #new-apiary-msg, #add-hive-msg,
+#join-apiary-msg, #push-msg, #rename-msg, #copy-msg,
+#reminder-msg, #hive-danger-msg, #apiary-danger-msg,
+#invite-msg { 
+  font-size: 0.85rem;
+  color: var(--muted);
+  min-height: 18px;
+}
+
+/* ── Back link ───────────────────────────────────────── */
+body > a:first-of-type {
+  display: inline-block;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  margin-bottom: 16px;
+  opacity: 0.6;
+}
+body > a:first-of-type:hover { opacity: 1; }
+
+/* ── Utility ─────────────────────────────────────────── */
+.hidden { display: none !important; }
+.visible { display: block; }
+hr { border: none; border-top: 1px solid #eee; margin: 8px 0; }

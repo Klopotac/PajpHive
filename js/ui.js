@@ -1,6 +1,6 @@
 // ui.js — Shared UI utilities
 
-// Generate a short random invite code
+// Generate a short random invite code (also kept in db.js to avoid circular imports)
 export function generateInviteCode() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
@@ -31,27 +31,36 @@ export function showMsg(el, msg, isError = false) {
   el.className = isError ? "error-msg" : "success-msg";
 }
 
-// Copy text to clipboard, return true on success
+// Copy text to clipboard — works on HTTP (non-HTTPS) and older browsers
 export async function copyToClipboard(text) {
+  // Modern API — requires HTTPS or localhost
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      // Fall through to legacy method
+    }
+  }
+  // Legacy fallback — works on HTTP
   try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch (e) {
-    // Fallback for older browsers
     const ta = document.createElement("textarea");
     ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    ta.style.top = "-9999px";
     document.body.appendChild(ta);
+    ta.focus();
     ta.select();
-    document.execCommand("copy");
+    const ok = document.execCommand("copy");
     document.body.removeChild(ta);
-    return true;
+    return ok;
+  } catch (e) {
+    return false;
   }
 }
 
 // Show/hide sync banner.
-// count > 0  → shows "N recording(s) waiting to sync"
-// count === 0 and customMsg provided → shows the custom message briefly then hides
-// count === 0 and no customMsg → hides the banner
 export function updateSyncBanner(count, customMsg) {
   const banner = document.getElementById("sync-banner");
   if (!banner) return;
@@ -61,7 +70,6 @@ export function updateSyncBanner(count, customMsg) {
   } else if (customMsg) {
     banner.textContent = customMsg;
     banner.classList.add("visible");
-    // Auto-hide after 4 seconds
     setTimeout(() => banner.classList.remove("visible"), 4000);
   } else {
     banner.classList.remove("visible");
@@ -75,12 +83,10 @@ export function buildNav(containerId) {
   const links = [
     { href: "/index.html", label: "Hives" },
     { href: "/calendar.html", label: "Calendar" },
-    { href: "/partners.html", label: "Partners" },
     { href: "/settings.html", label: "Settings" }
   ];
   const currentPath = window.location.pathname;
   nav.innerHTML = links.map(l => {
-    // Match if the current path ends with the page filename, or is "/" and link is index
     const isActive = currentPath === l.href
       || currentPath.endsWith(l.href.substring(1))
       || (currentPath === "/" && l.href === "/index.html");

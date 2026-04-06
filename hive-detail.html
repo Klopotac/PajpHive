@@ -8,7 +8,7 @@
 </head>
 <body>
   <div id="sync-banner"></div>
-  <a href="/index.html">&larr; Back</a>
+  <a href="/index.html">&larr; Back to Dashboard</a>
   <h1 id="hive-title">Hive Details</h1>
 
   <section>
@@ -66,7 +66,7 @@
     import {
       getApiary, getHive, updateHive, listenInspections,
       listenReminders, addReminder, deleteReminder,
-      toggleReminder, deleteHiveDeep, getDisplayName
+      toggleReminder, deleteHiveDeep, getDisplayName, getRemindersOnce
     } from "/js/db.js";
     import { buildNav, copyToClipboard, formatDateTime, formatDate, updateSyncBanner } from "/js/ui.js";
     import { pendingCount, openOfflineDB } from "/js/offline.js";
@@ -79,24 +79,35 @@
     let unsubInspections = null;
     let unsubReminders = null;
     let currentHive = null;
-    let currentUser = null;
 
     const user = await requireAuth();
-    currentUser = user;
 
     if (!hiveId) {
       document.body.innerHTML = "<p>No hive ID specified.</p><a href='/index.html'>Go back</a>";
       throw new Error("No hive ID");
     }
 
-    const hive = await getHive(hiveId);
+    let hive, apiary;
+    try {
+      hive = await getHive(hiveId);
+    } catch (e) {
+      document.body.innerHTML = `<p>Error loading hive: ${e.message}</p><a href='/index.html'>Go back</a>`;
+      throw e;
+    }
+
     if (!hive) {
       document.body.innerHTML = "<p>Hive not found.</p><a href='/index.html'>Go back</a>";
       throw new Error("Hive not found");
     }
     currentHive = hive;
 
-    const apiary = await getApiary(hive.apiaryId);
+    try {
+      apiary = await getApiary(hive.apiaryId);
+    } catch (e) {
+      document.body.innerHTML = `<p>Error loading apiary: ${e.message}</p><a href='/index.html'>Go back</a>`;
+      throw e;
+    }
+
     if (!apiary || !apiary.members.includes(user.uid)) {
       document.body.innerHTML = "<p>You do not have access to this hive.</p><a href='/index.html'>Back</a>";
       throw new Error("Access denied");
@@ -137,7 +148,12 @@
     // ── Copy NFC URL ──────────────────────────────────────────────────────────
     document.getElementById("btn-copy-nfc").onclick = async () => {
       const ok = await copyToClipboard(nfcUrl);
-      document.getElementById("copy-msg").textContent = ok ? "Copied!" : "Copy failed.";
+      const msg = document.getElementById("copy-msg");
+      if (ok) {
+        msg.textContent = "Copied!";
+      } else {
+        msg.textContent = "Auto-copy failed. Copy manually: " + nfcUrl;
+      }
     };
 
     // ── Add Reminder ──────────────────────────────────────────────────────────
@@ -145,27 +161,32 @@
       const text = document.getElementById("reminder-text").value.trim();
       const date = document.getElementById("reminder-date").value;
       const msg = document.getElementById("reminder-msg");
-      if (!text || !date) { msg.textContent = "Please enter text and a date."; return; }
+      if (!text) { msg.textContent = "Please enter reminder text."; return; }
+      if (!date) { msg.textContent = "Please select a date."; return; }
       const btn = document.getElementById("btn-add-reminder");
       btn.disabled = true;
+      msg.textContent = "Saving...";
       try {
         await addReminder(hive.apiaryId, hiveId, text, date);
         document.getElementById("reminder-text").value = "";
         document.getElementById("reminder-date").value = "";
-        msg.textContent = "Reminder added.";
+        msg.textContent = "Reminder added!";
+        // Manually refresh the list in case the real-time listener is waiting on index
+        const fresh = await getRemindersOnce(hive.apiaryId);
+        renderReminders(fresh.filter(r => r.hiveId === hiveId));
       } catch (e) {
-        msg.textContent = "Error: " + e.message;
+        msg.textContent = "Error saving reminder: " + e.message;
+        console.error("addReminder failed:", e);
       } finally {
         btn.disabled = false;
       }
     };
 
     // ── Reminders list ────────────────────────────────────────────────────────
-    unsubReminders = listenReminders(hive.apiaryId, (reminders) => {
-      const hiveReminders = reminders.filter(r => r.hiveId === hiveId);
+    function renderReminders(hiveReminders) {
       const list = document.getElementById("reminders-list");
       if (hiveReminders.length === 0) {
-        list.innerHTML = "<p>No upcoming reminders.</p>";
+        list.innerHTML = "<p>No reminders yet.</p>";
         return;
       }
       list.innerHTML = hiveReminders.map(r => `
@@ -174,7 +195,7 @@
             <input type="checkbox" data-id="${r.id}" ${r.done ? "checked" : ""}>
             ${r.text} — ${formatDate(r.dueDate)} ${r.done ? "<em>(done)</em>" : ""}
           </label>
-          <button data-delete-reminder="${r.id}" style="margin-left:8px">Delete</button>
+          <button data-delete-reminder="${r.id}">Delete</button>
         </div>
       `).join("");
 
@@ -184,9 +205,20 @@
       list.querySelectorAll("[data-delete-reminder]").forEach(btn => {
         btn.onclick = async () => {
           if (!confirm("Delete this reminder?")) return;
-          await deleteReminder(btn.dataset.deleteReminder);
+          try {
+            await deleteReminder(btn.dataset.deleteReminder);
+            // Refresh manually in case real-time listener is pending
+            const fresh = await getRemindersOnce(hive.apiaryId);
+            renderReminders(fresh.filter(r => r.hiveId === hiveId));
+          } catch (e) {
+            alert("Error deleting reminder: " + e.message);
+          }
         };
       });
+    }
+
+    unsubReminders = listenReminders(hive.apiaryId, (reminders) => {
+      renderReminders(reminders.filter(r => r.hiveId === hiveId));
     });
 
     // ── Danger Zone (owner only) ──────────────────────────────────────────────
@@ -225,8 +257,7 @@
         return;
       }
 
-      // Resolve display names for all unique recorders
-      const uids = [...new Set(inspections.map(i => i.recordedBy))];
+      const uids = [...new Set(inspections.map(i => i.recordedBy).filter(Boolean))];
       const nameMap = {};
       await Promise.all(uids.map(async uid => {
         nameMap[uid] = await getDisplayName(uid, user.uid);

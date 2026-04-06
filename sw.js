@@ -1,7 +1,7 @@
 // sw.js — HiveVoice Service Worker
 // Provides offline caching for the app shell
 
-const CACHE_NAME = "hivevoice-v1";
+const CACHE_NAME = "hivevoice-v2";
 
 const APP_SHELL = [
   "/",
@@ -62,7 +62,6 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     caches.match(event.request).then((cached) => {
       return cached || fetch(event.request).then((response) => {
-        // Cache fresh responses
         if (response && response.status === 200 && event.request.method === "GET") {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));

@@ -14,31 +14,33 @@
     <p>No apiary selected. <a href="/index.html">Go to the Dashboard</a> to set one up.</p>
   </div>
 
-  <div id="calendar-controls">
-    <button id="btn-prev">&larr;</button>
-    <span id="month-label"></span>
-    <button id="btn-next">&rarr;</button>
+  <div id="calendar-wrap">
+    <div id="calendar-controls">
+      <button id="btn-prev">&larr;</button>
+      <span id="month-label"></span>
+      <button id="btn-next">&rarr;</button>
+    </div>
+
+    <table id="calendar-grid" border="1">
+      <thead>
+        <tr>
+          <th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th>
+        </tr>
+      </thead>
+      <tbody id="calendar-body"></tbody>
+    </table>
+
+    <section>
+      <h2 id="selected-date-label">Click a date to see reminders</h2>
+      <div id="day-tasks"></div>
+    </section>
   </div>
-
-  <table id="calendar-grid" border="1">
-    <thead>
-      <tr>
-        <th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th>
-      </tr>
-    </thead>
-    <tbody id="calendar-body"></tbody>
-  </table>
-
-  <section>
-    <h2 id="selected-date-label">Select a date to see tasks</h2>
-    <div id="day-tasks"></div>
-  </section>
 
   <nav id="main-nav"></nav>
 
   <script type="module">
     import { requireAuth, getCachedApiaryId } from "/js/auth.js";
-    import { listenReminders, toggleReminder, deleteReminder, listenHives } from "/js/db.js";
+    import { listenReminders, toggleReminder, deleteReminder, listenHives, getRemindersOnce } from "/js/db.js";
     import { buildNav, updateSyncBanner } from "/js/ui.js";
     import { pendingCount, openOfflineDB } from "/js/offline.js";
 
@@ -53,8 +55,7 @@
 
     if (!apiaryId) {
       document.getElementById("no-apiary-msg").classList.remove("hidden");
-      document.getElementById("calendar-controls").classList.add("hidden");
-      document.getElementById("calendar-grid").classList.add("hidden");
+      document.getElementById("calendar-wrap").style.display = "none";
     }
 
     let reminders = [];
@@ -65,8 +66,10 @@
     let currentMonth = new Date().getMonth();
     let selectedDate = null;
 
+    // Render immediately so the grid is always visible
+    renderCalendar();
+
     if (apiaryId) {
-      // Listen for hive names so we can label each reminder with the hive
       unsubHives = listenHives(apiaryId, (hives) => {
         hiveNameMap = {};
         hives.forEach(h => { hiveNameMap[h.id] = h.name; });
@@ -79,6 +82,16 @@
         renderCalendar();
         if (selectedDate) showDayTasks(selectedDate);
       });
+
+      // Also do an immediate one-time fetch so the calendar populates even
+      // before the real-time listener fires (helpful while index is building)
+      getRemindersOnce(apiaryId).then(data => {
+        if (reminders.length === 0 && data.length > 0) {
+          reminders = data;
+          renderCalendar();
+          if (selectedDate) showDayTasks(selectedDate);
+        }
+      }).catch(() => {});
     }
 
     function renderCalendar() {
@@ -93,7 +106,7 @@
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
       const today = new Date();
 
-      // Build day → count map for reminder dots
+      // Build day → count map
       const dayMap = {};
       reminders.forEach(r => {
         if (!r.dueDate || r.done) return;
@@ -116,12 +129,24 @@
               d === today.getDate() &&
               currentMonth === today.getMonth() &&
               currentYear === today.getFullYear();
-            td.textContent = d + (dayMap[d] ? ` (${dayMap[d]})` : "");
+            const isSelected = selectedDate &&
+              d === selectedDate.getDate() &&
+              currentMonth === selectedDate.getMonth() &&
+              currentYear === selectedDate.getFullYear();
+
+            td.textContent = d;
+            if (dayMap[d]) {
+              const badge = document.createElement("sup");
+              badge.textContent = ` (${dayMap[d]})`;
+              td.appendChild(badge);
+            }
             if (isToday) td.style.fontWeight = "bold";
+            if (isSelected) td.style.outline = "2px solid #333";
             td.style.cursor = "pointer";
             td.onclick = () => {
               selectedDate = new Date(currentYear, currentMonth, d);
               showDayTasks(selectedDate);
+              renderCalendar();
             };
             day++;
           }
@@ -150,7 +175,7 @@
       });
 
       if (dayTasks.length === 0) {
-        container.innerHTML = "<p>No tasks for this day.</p>";
+        container.innerHTML = "<p>No reminders for this day.</p>";
         return;
       }
 
@@ -162,7 +187,7 @@
               <input type="checkbox" data-id="${r.id}" ${r.done ? "checked" : ""}>
               <strong>${hiveName}:</strong> ${r.text} ${r.done ? "<em>(done)</em>" : ""}
             </label>
-            <button data-delete-reminder="${r.id}" style="margin-left:8px">Delete</button>
+            <button data-delete-reminder="${r.id}">Delete</button>
           </div>
         `;
       }).join("");
@@ -170,12 +195,27 @@
       container.querySelectorAll("input[type=checkbox]").forEach(cb => {
         cb.onchange = async () => {
           await toggleReminder(cb.dataset.id, cb.checked);
+          // Refresh reminders after toggle
+          getRemindersOnce(apiaryId).then(data => {
+            reminders = data;
+            renderCalendar();
+            showDayTasks(date);
+          }).catch(() => {});
         };
       });
       container.querySelectorAll("[data-delete-reminder]").forEach(btn => {
         btn.onclick = async () => {
           if (!confirm("Delete this reminder?")) return;
-          await deleteReminder(btn.dataset.deleteReminder);
+          try {
+            await deleteReminder(btn.dataset.deleteReminder);
+            getRemindersOnce(apiaryId).then(data => {
+              reminders = data;
+              renderCalendar();
+              showDayTasks(date);
+            }).catch(() => {});
+          } catch (e) {
+            alert("Error: " + e.message);
+          }
         };
       });
     }
@@ -190,8 +230,6 @@
       if (currentMonth > 11) { currentMonth = 0; currentYear++; }
       renderCalendar();
     };
-
-    renderCalendar();
 
     window.addEventListener("beforeunload", () => {
       if (unsubReminders) unsubReminders();

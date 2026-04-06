@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
+  <div id="sync-banner"></div>
   <h1>Settings</h1>
 
   <section>
@@ -17,6 +18,7 @@
 
   <section>
     <h2>My Apiaries</h2>
+    <p><a href="/index.html">Manage apiaries, hives, and partners from the Dashboard.</a></p>
     <div id="apiaries-list"><p>Loading...</p></div>
   </section>
 
@@ -41,19 +43,18 @@
   <nav id="main-nav"></nav>
 
   <script type="module">
-    import { requireAuth, logOut, clearCachedApiaryId, cacheApiaryId, getCachedApiaryId } from "/js/auth.js";
+    import { requireAuth, logOut, clearCachedApiaryId, cacheApiaryId } from "/js/auth.js";
     import {
-      getApiariesByUser, deleteApiaryDeep, getApiaryByInviteCode,
-      joinApiary, leaveApiary, renameApiary, regenerateInviteCode, getDisplayName
+      getApiariesByUser, getApiaryByInviteCode, joinApiary, getDisplayName
     } from "/js/db.js";
     import { messaging } from "/js/firebase-config.js";
-    import { buildNav, copyToClipboard } from "/js/ui.js";
+    import { buildNav } from "/js/ui.js";
 
     buildNav("main-nav");
 
     const user = await requireAuth();
 
-    document.getElementById("user-name").textContent = user.displayName || "(no name)";
+    document.getElementById("user-name").textContent = user.displayName || "(no name set)";
     document.getElementById("user-email").textContent = user.email;
 
     async function loadApiaries() {
@@ -73,7 +74,7 @@
         return;
       }
 
-      // Resolve member display names for all apiaries
+      // Resolve member display names
       const allUids = [...new Set(apiaries.flatMap(a => a.members))];
       const nameMap = {};
       await Promise.all(allUids.map(async uid => {
@@ -85,136 +86,16 @@
         const membersHtml = a.members.map(uid =>
           `<li>${nameMap[uid] || uid}${uid === a.ownerId ? " (owner)" : ""}${uid === user.uid ? " — you" : ""}</li>`
         ).join("");
-
         return `
-        <div id="apiary-card-${a.id}" style="border:1px solid #ccc; padding:12px; margin-bottom:16px">
-          <strong id="name-display-${a.id}">${a.name}</strong>
-          <br>
-          <ul>${membersHtml}</ul>
-
-          ${isOwner ? `
-            <div>
-              <strong>Invite Code:</strong>
-              <span id="invite-display-${a.id}">${a.inviteCode}</span>
-              <button onclick="copyInvite('${a.id}')">Copy</button>
-              <button onclick="regenInvite('${a.id}')">New Code</button>
-              <span id="invite-msg-${a.id}"></span>
-            </div>
-            <br>
-            <div>
-              <label>Rename: </label>
-              <input type="text" id="name-input-${a.id}" value="${a.name}" maxlength="60">
-              <button onclick="doRename('${a.id}')">Save</button>
-            </div>
-            <br>
-            <div style="border:1px solid red; padding:8px; margin-top:8px">
-              <strong>Danger Zone</strong>
-              <p>Permanently deletes this apiary and ALL its hives, inspections, and reminders.</p>
-              <p>Type <strong>${a.name}</strong> to confirm:</p>
-              <input
-                type="text"
-                id="delete-apiary-name-${a.id}"
-                placeholder="Type apiary name to confirm"
-                maxlength="60"
-                autocomplete="off"
-              >
-              <button id="btn-delete-apiary-${a.id}" disabled>Delete Apiary</button>
-              <span id="apiary-msg-${a.id}"></span>
-            </div>
-          ` : `
-            <em>Joined as partner</em>
-            <br><br>
-            <button onclick="doLeave('${a.id}')">Leave this Apiary</button>
-            <span id="apiary-msg-${a.id}"></span>
-          `}
-        </div>
+          <div>
+            <strong>${a.name}</strong>
+            ${isOwner ? " — Owner" : " — Partner"}
+            <ul>${membersHtml}</ul>
+          </div>
+          <hr>
         `;
       }).join("");
-
-      // Wire up danger zone inputs after render
-      apiaries.filter(a => a.ownerId === user.uid).forEach(a => {
-        const input = document.getElementById(`delete-apiary-name-${a.id}`);
-        const btn = document.getElementById(`btn-delete-apiary-${a.id}`);
-        if (!input || !btn) return;
-        input.addEventListener("input", () => {
-          btn.disabled = input.value.trim() !== a.name;
-        });
-        btn.onclick = () => doDelete(a.id, a.name);
-      });
     }
-
-    window.copyInvite = async (id) => {
-      const code = document.getElementById(`invite-display-${id}`)?.textContent;
-      if (!code) return;
-      await copyToClipboard(code);
-      const msg = document.getElementById(`invite-msg-${id}`);
-      if (msg) { msg.textContent = "Copied!"; setTimeout(() => msg.textContent = "", 2000); }
-    };
-
-    window.regenInvite = async (id) => {
-      if (!confirm("Generate a new invite code? The old code will stop working.")) return;
-      try {
-        const newCode = await regenerateInviteCode(id);
-        const display = document.getElementById(`invite-display-${id}`);
-        if (display) display.textContent = newCode;
-        const msg = document.getElementById(`invite-msg-${id}`);
-        if (msg) { msg.textContent = "New code active."; setTimeout(() => msg.textContent = "", 2000); }
-      } catch (e) {
-        alert("Error: " + e.message);
-      }
-    };
-
-    window.doRename = async (id) => {
-      const input = document.getElementById(`name-input-${id}`);
-      const display = document.getElementById(`name-display-${id}`);
-      const name = input?.value.trim();
-      if (!name) { alert("Name cannot be empty."); return; }
-      try {
-        await renameApiary(id, name);
-        if (display) display.textContent = name;
-        // Also update the danger zone hint text
-        const dangerInput = document.getElementById(`delete-apiary-name-${id}`);
-        if (dangerInput) dangerInput.value = "";
-        const btn = document.getElementById(`btn-delete-apiary-${id}`);
-        if (btn) btn.disabled = true;
-      } catch (e) {
-        alert("Error: " + e.message);
-      }
-    };
-
-    window.doDelete = async (id, expectedName) => {
-      const input = document.getElementById(`delete-apiary-name-${id}`);
-      const btn = document.getElementById(`btn-delete-apiary-${id}`);
-      const msg = document.getElementById(`apiary-msg-${id}`);
-      const typed = input?.value.trim();
-
-      if (typed !== expectedName) return;
-
-      btn.disabled = true;
-      if (msg) msg.textContent = "Deleting...";
-
-      try {
-        await deleteApiaryDeep(id);
-        if (getCachedApiaryId() === id) clearCachedApiaryId();
-        await loadApiaries();
-      } catch (e) {
-        if (msg) msg.textContent = "Error: " + e.message;
-        btn.disabled = false;
-      }
-    };
-
-    window.doLeave = async (id) => {
-      if (!confirm("Leave this apiary? You will lose access to all its hives and recordings.")) return;
-      try {
-        await leaveApiary(id, user.uid);
-        if (getCachedApiaryId() === id) clearCachedApiaryId();
-        await loadApiaries();
-      } catch (e) {
-        const msg = document.getElementById(`apiary-msg-${id}`);
-        if (msg) msg.textContent = "Error: " + e.message;
-        else alert("Error: " + e.message);
-      }
-    };
 
     loadApiaries();
 
@@ -228,11 +109,11 @@
       msg.textContent = "Joining...";
       try {
         const apiary = await getApiaryByInviteCode(code);
-        if (!apiary) { msg.textContent = "Invalid invite code. Double-check and try again."; return; }
+        if (!apiary) { msg.textContent = "Invalid invite code. Double-check and try again."; btn.disabled = false; return; }
         await joinApiary(apiary.id, user.uid);
         cacheApiaryId(apiary.id);
         document.getElementById("join-invite-code").value = "";
-        msg.textContent = `Joined "${apiary.name}"! Switch to it from the Dashboard.`;
+        msg.textContent = `Joined "${apiary.name}"! Go to the Dashboard to see it.`;
         await loadApiaries();
       } catch (e) {
         msg.textContent = "Error: " + e.message;
