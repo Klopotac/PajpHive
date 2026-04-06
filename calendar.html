@@ -10,6 +10,10 @@
   <div id="sync-banner"></div>
   <h1>Shared Calendar</h1>
 
+  <div id="no-apiary-msg" class="hidden">
+    <p>No apiary selected. <a href="/index.html">Go to the Dashboard</a> to set one up.</p>
+  </div>
+
   <div id="calendar-controls">
     <button id="btn-prev">&larr;</button>
     <span id="month-label"></span>
@@ -26,29 +30,50 @@
   </table>
 
   <section>
-    <h2 id="selected-date-label">Select a date</h2>
-    <div id="day-tasks"><p>Tap a date to see tasks.</p></div>
+    <h2 id="selected-date-label">Select a date to see tasks</h2>
+    <div id="day-tasks"></div>
   </section>
 
   <nav id="main-nav"></nav>
 
   <script type="module">
     import { requireAuth, getCachedApiaryId } from "/js/auth.js";
-    import { listenReminders, toggleReminder } from "/js/db.js";
-    import { buildNav } from "/js/ui.js";
+    import { listenReminders, toggleReminder, deleteReminder, listenHives } from "/js/db.js";
+    import { buildNav, updateSyncBanner } from "/js/ui.js";
+    import { pendingCount, openOfflineDB } from "/js/offline.js";
 
     buildNav("main-nav");
+    openOfflineDB();
 
     const user = await requireAuth();
     const apiaryId = getCachedApiaryId();
 
+    const pending = await pendingCount();
+    updateSyncBanner(pending);
+
+    if (!apiaryId) {
+      document.getElementById("no-apiary-msg").classList.remove("hidden");
+      document.getElementById("calendar-controls").classList.add("hidden");
+      document.getElementById("calendar-grid").classList.add("hidden");
+    }
+
     let reminders = [];
+    let hiveNameMap = {};
     let unsubReminders = null;
+    let unsubHives = null;
     let currentYear = new Date().getFullYear();
-    let currentMonth = new Date().getMonth(); // 0-indexed
+    let currentMonth = new Date().getMonth();
     let selectedDate = null;
 
     if (apiaryId) {
+      // Listen for hive names so we can label each reminder with the hive
+      unsubHives = listenHives(apiaryId, (hives) => {
+        hiveNameMap = {};
+        hives.forEach(h => { hiveNameMap[h.id] = h.name; });
+        renderCalendar();
+        if (selectedDate) showDayTasks(selectedDate);
+      });
+
       unsubReminders = listenReminders(apiaryId, (data) => {
         reminders = data;
         renderCalendar();
@@ -66,16 +91,16 @@
 
       const firstDay = new Date(currentYear, currentMonth, 1).getDay();
       const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+      const today = new Date();
 
-      // Build date → reminders map
+      // Build day → count map for reminder dots
       const dayMap = {};
       reminders.forEach(r => {
-        if (!r.dueDate) return;
+        if (!r.dueDate || r.done) return;
         const d = r.dueDate.toDate ? r.dueDate.toDate() : new Date(r.dueDate);
         if (d.getFullYear() === currentYear && d.getMonth() === currentMonth) {
           const key = d.getDate();
-          if (!dayMap[key]) dayMap[key] = 0;
-          dayMap[key]++;
+          dayMap[key] = (dayMap[key] || 0) + 1;
         }
       });
 
@@ -84,11 +109,16 @@
         const tr = document.createElement("tr");
         for (let col = 0; col < 7; col++) {
           const td = document.createElement("td");
-          if (row === 0 && col < firstDay || day > daysInMonth) {
-            td.textContent = "";
-          } else {
+          const isEmpty = (row === 0 && col < firstDay) || day > daysInMonth;
+          if (!isEmpty) {
             const d = day;
+            const isToday =
+              d === today.getDate() &&
+              currentMonth === today.getMonth() &&
+              currentYear === today.getFullYear();
             td.textContent = d + (dayMap[d] ? ` (${dayMap[d]})` : "");
+            if (isToday) td.style.fontWeight = "bold";
+            td.style.cursor = "pointer";
             td.onclick = () => {
               selectedDate = new Date(currentYear, currentMonth, d);
               showDayTasks(selectedDate);
@@ -104,15 +134,19 @@
 
     function showDayTasks(date) {
       const label = document.getElementById("selected-date-label");
-      label.textContent = date.toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric" });
+      label.textContent = date.toLocaleDateString(undefined, {
+        weekday: "long", month: "long", day: "numeric", year: "numeric"
+      });
 
       const container = document.getElementById("day-tasks");
       const dayTasks = reminders.filter(r => {
         if (!r.dueDate) return false;
         const d = r.dueDate.toDate ? r.dueDate.toDate() : new Date(r.dueDate);
-        return d.getFullYear() === date.getFullYear() &&
-               d.getMonth() === date.getMonth() &&
-               d.getDate() === date.getDate();
+        return (
+          d.getFullYear() === date.getFullYear() &&
+          d.getMonth() === date.getMonth() &&
+          d.getDate() === date.getDate()
+        );
       });
 
       if (dayTasks.length === 0) {
@@ -120,18 +154,28 @@
         return;
       }
 
-      container.innerHTML = dayTasks.map(r => `
-        <div>
-          <label>
-            <input type="checkbox" data-id="${r.id}" ${r.done ? "checked" : ""}>
-            ${r.text} ${r.done ? "<em>(done)</em>" : ""}
-          </label>
-        </div>
-      `).join("");
+      container.innerHTML = dayTasks.map(r => {
+        const hiveName = hiveNameMap[r.hiveId] || "Unknown Hive";
+        return `
+          <div>
+            <label>
+              <input type="checkbox" data-id="${r.id}" ${r.done ? "checked" : ""}>
+              <strong>${hiveName}:</strong> ${r.text} ${r.done ? "<em>(done)</em>" : ""}
+            </label>
+            <button data-delete-reminder="${r.id}" style="margin-left:8px">Delete</button>
+          </div>
+        `;
+      }).join("");
 
       container.querySelectorAll("input[type=checkbox]").forEach(cb => {
         cb.onchange = async () => {
           await toggleReminder(cb.dataset.id, cb.checked);
+        };
+      });
+      container.querySelectorAll("[data-delete-reminder]").forEach(btn => {
+        btn.onclick = async () => {
+          if (!confirm("Delete this reminder?")) return;
+          await deleteReminder(btn.dataset.deleteReminder);
         };
       });
     }
@@ -148,7 +192,11 @@
     };
 
     renderCalendar();
-    window.addEventListener("beforeunload", () => { if (unsubReminders) unsubReminders(); });
+
+    window.addEventListener("beforeunload", () => {
+      if (unsubReminders) unsubReminders();
+      if (unsubHives) unsubHives();
+    });
   </script>
 </body>
 </html>

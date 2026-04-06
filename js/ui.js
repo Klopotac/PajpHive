@@ -48,13 +48,21 @@ export async function copyToClipboard(text) {
   }
 }
 
-// Show/hide sync banner with pending count
-export function updateSyncBanner(count) {
+// Show/hide sync banner.
+// count > 0  → shows "N recording(s) waiting to sync"
+// count === 0 and customMsg provided → shows the custom message briefly then hides
+// count === 0 and no customMsg → hides the banner
+export function updateSyncBanner(count, customMsg) {
   const banner = document.getElementById("sync-banner");
   if (!banner) return;
   if (count > 0) {
     banner.textContent = `${count} recording${count > 1 ? "s" : ""} waiting to sync`;
     banner.classList.add("visible");
+  } else if (customMsg) {
+    banner.textContent = customMsg;
+    banner.classList.add("visible");
+    // Auto-hide after 4 seconds
+    setTimeout(() => banner.classList.remove("visible"), 4000);
   } else {
     banner.classList.remove("visible");
   }
@@ -70,7 +78,12 @@ export function buildNav(containerId) {
     { href: "/partners.html", label: "Partners" },
     { href: "/settings.html", label: "Settings" }
   ];
-  nav.innerHTML = links.map(l =>
-    `<a href="${l.href}"${window.location.pathname.endsWith(l.href.replace("/","")) ? ' aria-current="page"' : ""}>${l.label}</a>`
-  ).join(" | ");
+  const currentPath = window.location.pathname;
+  nav.innerHTML = links.map(l => {
+    // Match if the current path ends with the page filename, or is "/" and link is index
+    const isActive = currentPath === l.href
+      || currentPath.endsWith(l.href.substring(1))
+      || (currentPath === "/" && l.href === "/index.html");
+    return `<a href="${l.href}"${isActive ? ' aria-current="page"' : ""}>${l.label}</a>`;
+  }).join(" | ");
 }

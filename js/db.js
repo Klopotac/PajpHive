@@ -54,9 +54,19 @@ export async function joinApiary(apiaryId, userId) {
   const snap = await getDoc(ref);
   if (!snap.exists()) throw new Error("Apiary not found");
   const data = snap.data();
-  if (data.members.length >= 3) throw new Error("Apiary is full (max 3 members)");
-  if (data.members.includes(userId)) return;
+  if (data.members.includes(userId)) throw new Error("You are already a member of this apiary");
+  if (data.members.length >= 3) throw new Error("This apiary is full (max 3 members). Ask the owner to remove a member first.");
   await updateDoc(ref, { members: [...data.members, userId] });
+}
+
+export async function leaveApiary(apiaryId, userId) {
+  const ref = doc(db, "apiaries", apiaryId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("Apiary not found");
+  const data = snap.data();
+  if (data.ownerId === userId) throw new Error("You are the owner — transfer ownership or delete the apiary instead.");
+  const newMembers = data.members.filter(uid => uid !== userId);
+  await updateDoc(ref, { members: newMembers });
 }
 
 export async function getApiary(apiaryId) {
@@ -64,73 +74,47 @@ export async function getApiary(apiaryId) {
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
-export async function deleteApiary(apiaryId) {
-  await deleteDoc(doc(db, "apiaries", apiaryId));
+export async function renameApiary(apiaryId, newName) {
+  await updateDoc(doc(db, "apiaries", apiaryId), { name: newName });
 }
 
-export async function deleteHiveDeep(hiveId) {
-  // Deletes a hive doc plus its related inspections and reminders.
-  const inspectionsQ = query(collection(db, "inspections"), where("hiveId", "==", hiveId));
-  const remindersQ = query(collection(db, "reminders"), where("hiveId", "==", hiveId));
-
-  const [inspectionsSnap, remindersSnap] = await Promise.all([
-    getDocs(inspectionsQ),
-    getDocs(remindersQ)
-  ]);
-
-  const inspectionRefs = inspectionsSnap.docs.map(d => d.ref);
-  const reminderRefs = remindersSnap.docs.map(d => d.ref);
-
-  if (inspectionRefs.length > 0) await deleteRefsInBatches(inspectionRefs);
-  if (reminderRefs.length > 0) await deleteRefsInBatches(reminderRefs);
-
-  await deleteDoc(doc(db, "hives", hiveId));
+export async function regenerateInviteCode(apiaryId) {
+  const newCode = generateInviteCode();
+  await updateDoc(doc(db, "apiaries", apiaryId), { inviteCode: newCode });
+  return newCode;
 }
 
+// Deep delete: apiary + all its hives + their inspections/reminders
 export async function deleteApiaryDeep(apiaryId) {
-  // Deletes an apiary plus all its hives, and related inspections/reminders.
   const hivesSnap = await getDocs(query(collection(db, "hives"), where("apiaryId", "==", apiaryId)));
   const hiveIds = hivesSnap.docs.map(d => d.id);
 
-  // Delete inspections/reminders by hiveId to ensure correctness even if some docs were mis-assigned.
-  const inspectionRefsMap = new Map(); // path -> DocumentReference
-  const reminderRefsMap = new Map(); // path -> DocumentReference
-
+  const inspectionRefsMap = new Map();
+  const reminderRefsMap = new Map();
   const addToMap = (map, docRef) => map.set(docRef.path, docRef);
 
-  const hiveIdChunks = chunkArray(hiveIds, 10); // Firestore 'in' supports up to 10 values
+  const hiveIdChunks = chunkArray(hiveIds, 10);
   for (const chunk of hiveIdChunks) {
     if (chunk.length === 0) continue;
-
-    const inspectionsQ = query(collection(db, "inspections"), where("hiveId", "in", chunk));
-    const remindersQ = query(collection(db, "reminders"), where("hiveId", "in", chunk));
-
     const [inspectionsSnap, remindersSnap] = await Promise.all([
-      getDocs(inspectionsQ),
-      getDocs(remindersQ)
+      getDocs(query(collection(db, "inspections"), where("hiveId", "in", chunk))),
+      getDocs(query(collection(db, "reminders"), where("hiveId", "in", chunk)))
     ]);
-
     inspectionsSnap.docs.forEach(d => addToMap(inspectionRefsMap, d.ref));
     remindersSnap.docs.forEach(d => addToMap(reminderRefsMap, d.ref));
   }
 
-  // Extra safety: also delete by apiaryId in case any docs were created with inconsistent hiveId.
+  // Extra safety: also delete by apiaryId
   const [inspectionsByApiary, remindersByApiary] = await Promise.all([
     getDocs(query(collection(db, "inspections"), where("apiaryId", "==", apiaryId))),
     getDocs(query(collection(db, "reminders"), where("apiaryId", "==", apiaryId)))
   ]);
-
   inspectionsByApiary.docs.forEach(d => addToMap(inspectionRefsMap, d.ref));
   remindersByApiary.docs.forEach(d => addToMap(reminderRefsMap, d.ref));
 
-  const inspectionRefs = [...inspectionRefsMap.values()];
-  const reminderRefs = [...reminderRefsMap.values()];
-
-  if (reminderRefs.length > 0) await deleteRefsInBatches(reminderRefs);
-  if (inspectionRefs.length > 0) await deleteRefsInBatches(inspectionRefs);
-
-  const hiveRefs = hivesSnap.docs.map(d => d.ref);
-  if (hiveRefs.length > 0) await deleteRefsInBatches(hiveRefs);
+  if ([...reminderRefsMap.values()].length > 0) await deleteRefsInBatches([...reminderRefsMap.values()]);
+  if ([...inspectionRefsMap.values()].length > 0) await deleteRefsInBatches([...inspectionRefsMap.values()]);
+  if (hivesSnap.docs.length > 0) await deleteRefsInBatches(hivesSnap.docs.map(d => d.ref));
 
   await deleteDoc(doc(db, "apiaries", apiaryId));
 }
@@ -159,21 +143,50 @@ export async function updateHive(hiveId, data) {
   await updateDoc(doc(db, "hives", hiveId), data);
 }
 
-export async function deleteHive(hiveId) {
+// Deep delete: hive + its inspections/reminders
+export async function deleteHiveDeep(hiveId) {
+  const [inspectionsSnap, remindersSnap] = await Promise.all([
+    getDocs(query(collection(db, "inspections"), where("hiveId", "==", hiveId))),
+    getDocs(query(collection(db, "reminders"), where("hiveId", "==", hiveId)))
+  ]);
+
+  const inspectionRefs = inspectionsSnap.docs.map(d => d.ref);
+  const reminderRefs = remindersSnap.docs.map(d => d.ref);
+
+  if (reminderRefs.length > 0) await deleteRefsInBatches(reminderRefs);
+  if (inspectionRefs.length > 0) await deleteRefsInBatches(inspectionRefs);
+
   await deleteDoc(doc(db, "hives", hiveId));
 }
 
 export function listenHives(apiaryId, callback) {
-  const q = query(collection(db, "hives"), where("apiaryId", "==", apiaryId));
+  const q = query(collection(db, "hives"), where("apiaryId", "==", apiaryId), orderBy("createdAt", "desc"));
   return onSnapshot(q, (snap) => {
-    const hives = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    hives.sort((a, b) => {
-      const at = a.createdAt?.seconds || 0;
-      const bt = b.createdAt?.seconds || 0;
-      return bt - at;
-    });
-    callback(hives);
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
   });
+}
+
+// ── User display names ────────────────────────────────────────────────────────
+
+// Cache resolved display names for the session to avoid repeat lookups
+const _nameCache = new Map();
+
+export async function getDisplayName(uid, currentUserUid) {
+  if (uid === currentUserUid) return "You";
+  if (_nameCache.has(uid)) return _nameCache.get(uid);
+  try {
+    const snap = await getDoc(doc(db, "users", uid));
+    const name = snap.exists() ? (snap.data().displayName || "Partner") : "Partner";
+    _nameCache.set(uid, name);
+    return name;
+  } catch {
+    return "Partner";
+  }
+}
+
+// Saves user display name to Firestore so partners can look it up
+export async function saveUserProfile(uid, displayName, email) {
+  await setDoc(doc(db, "users", uid), { displayName, email, updatedAt: serverTimestamp() }, { merge: true });
 }
 
 // ── Inspections ───────────────────────────────────────────────────────────────
@@ -192,7 +205,11 @@ export async function saveInspection(data) {
 }
 
 export function listenInspections(hiveId, callback) {
-  const q = query(collection(db, "inspections"), where("hiveId", "==", hiveId), orderBy("createdAt", "desc"));
+  const q = query(
+    collection(db, "inspections"),
+    where("hiveId", "==", hiveId),
+    orderBy("createdAt", "desc")
+  );
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
   });
@@ -203,10 +220,14 @@ export function listenInspections(hiveId, callback) {
 export async function addReminder(apiaryId, hiveId, text, dueDate) {
   await addDoc(collection(db, "reminders"), {
     apiaryId, hiveId, text,
-    dueDate: Timestamp.fromDate(new Date(dueDate)),
+    dueDate: Timestamp.fromDate(new Date(dueDate + "T00:00:00")),
     done: false,
     createdAt: serverTimestamp()
   });
+}
+
+export async function deleteReminder(reminderId) {
+  await deleteDoc(doc(db, "reminders", reminderId));
 }
 
 export async function toggleReminder(reminderId, done) {
@@ -214,7 +235,11 @@ export async function toggleReminder(reminderId, done) {
 }
 
 export function listenReminders(apiaryId, callback) {
-  const q = query(collection(db, "reminders"), where("apiaryId", "==", apiaryId), orderBy("dueDate", "asc"));
+  const q = query(
+    collection(db, "reminders"),
+    where("apiaryId", "==", apiaryId),
+    orderBy("dueDate", "asc")
+  );
   return onSnapshot(q, (snap) => {
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
   });

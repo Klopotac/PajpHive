@@ -34,18 +34,23 @@
     <p id="reminder-msg"></p>
   </section>
 
+  <section>
+    <h2>Upcoming Reminders</h2>
+    <div id="reminders-list"><p>Loading...</p></div>
+  </section>
+
   <section id="hive-danger-zone" class="hidden">
     <h2>Danger Zone</h2>
-    <p style="color:red">Delete this hive. This cannot be undone.</p>
+    <p>Permanently delete this hive and all its inspections and reminders. This cannot be undone.</p>
+    <p>Type <strong id="hive-name-confirm-hint"></strong> to confirm:</p>
     <input
       type="text"
       id="delete-hive-name"
       placeholder="Type the hive name to confirm"
       maxlength="60"
+      autocomplete="off"
     >
-    <button id="btn-delete-hive" disabled style="color:red; margin-left:8px">
-      Delete Hive
-    </button>
+    <button id="btn-delete-hive" disabled>Delete Hive</button>
     <p id="hive-danger-msg"></p>
   </section>
 
@@ -58,16 +63,26 @@
 
   <script type="module">
     import { requireAuth } from "/js/auth.js";
-    import { getApiary, getHive, updateHive, listenInspections, addReminder, deleteHiveDeep } from "/js/db.js";
-    import { buildNav, copyToClipboard, formatDateTime } from "/js/ui.js";
+    import {
+      getApiary, getHive, updateHive, listenInspections,
+      listenReminders, addReminder, deleteReminder,
+      toggleReminder, deleteHiveDeep, getDisplayName
+    } from "/js/db.js";
+    import { buildNav, copyToClipboard, formatDateTime, formatDate, updateSyncBanner } from "/js/ui.js";
+    import { pendingCount, openOfflineDB } from "/js/offline.js";
 
     buildNav("main-nav");
+    openOfflineDB();
 
     const params = new URLSearchParams(window.location.search);
     const hiveId = params.get("id");
     let unsubInspections = null;
+    let unsubReminders = null;
+    let currentHive = null;
+    let currentUser = null;
 
     const user = await requireAuth();
+    currentUser = user;
 
     if (!hiveId) {
       document.body.innerHTML = "<p>No hive ID specified.</p><a href='/index.html'>Go back</a>";
@@ -79,13 +94,16 @@
       document.body.innerHTML = "<p>Hive not found.</p><a href='/index.html'>Go back</a>";
       throw new Error("Hive not found");
     }
+    currentHive = hive;
 
-    // Hardening: require membership in the hive's parent apiary.
     const apiary = await getApiary(hive.apiaryId);
     if (!apiary || !apiary.members.includes(user.uid)) {
       document.body.innerHTML = "<p>You do not have access to this hive.</p><a href='/index.html'>Back</a>";
       throw new Error("Access denied");
     }
+
+    const pending = await pendingCount();
+    updateSyncBanner(pending);
 
     document.title = `HiveVoice — ${hive.name}`;
     document.getElementById("hive-title").textContent = hive.name;
@@ -94,29 +112,42 @@
     const nfcUrl = hive.nfcUrl || `${window.location.origin}/hive.html?id=${hiveId}`;
     document.getElementById("nfc-url").textContent = nfcUrl;
 
+    // ── Rename ────────────────────────────────────────────────────────────────
     document.getElementById("btn-rename").onclick = async () => {
       const newName = document.getElementById("edit-name").value.trim();
       const msg = document.getElementById("rename-msg");
       if (!newName) { msg.textContent = "Name cannot be empty."; return; }
+      const btn = document.getElementById("btn-rename");
+      btn.disabled = true;
       try {
         await updateHive(hiveId, { name: newName });
+        currentHive = { ...currentHive, name: newName };
         document.getElementById("hive-title").textContent = newName;
+        document.getElementById("hive-name-confirm-hint").textContent = newName;
+        document.getElementById("delete-hive-name").value = "";
+        document.getElementById("btn-delete-hive").disabled = true;
         msg.textContent = "Name updated.";
       } catch (e) {
         msg.textContent = "Error: " + e.message;
+      } finally {
+        btn.disabled = false;
       }
     };
 
+    // ── Copy NFC URL ──────────────────────────────────────────────────────────
     document.getElementById("btn-copy-nfc").onclick = async () => {
       const ok = await copyToClipboard(nfcUrl);
       document.getElementById("copy-msg").textContent = ok ? "Copied!" : "Copy failed.";
     };
 
+    // ── Add Reminder ──────────────────────────────────────────────────────────
     document.getElementById("btn-add-reminder").onclick = async () => {
       const text = document.getElementById("reminder-text").value.trim();
       const date = document.getElementById("reminder-date").value;
       const msg = document.getElementById("reminder-msg");
-      if (!text || !date) { msg.textContent = "Please enter text and date."; return; }
+      if (!text || !date) { msg.textContent = "Please enter text and a date."; return; }
+      const btn = document.getElementById("btn-add-reminder");
+      btn.disabled = true;
       try {
         await addReminder(hive.apiaryId, hiveId, text, date);
         document.getElementById("reminder-text").value = "";
@@ -124,31 +155,41 @@
         msg.textContent = "Reminder added.";
       } catch (e) {
         msg.textContent = "Error: " + e.message;
+      } finally {
+        btn.disabled = false;
       }
     };
 
-    unsubInspections = listenInspections(hiveId, (inspections) => {
-      const list = document.getElementById("inspections-list");
-      if (inspections.length === 0) {
-        list.innerHTML = "<p>No inspections yet.</p>";
+    // ── Reminders list ────────────────────────────────────────────────────────
+    unsubReminders = listenReminders(hive.apiaryId, (reminders) => {
+      const hiveReminders = reminders.filter(r => r.hiveId === hiveId);
+      const list = document.getElementById("reminders-list");
+      if (hiveReminders.length === 0) {
+        list.innerHTML = "<p>No upcoming reminders.</p>";
         return;
       }
-      list.innerHTML = inspections.map(ins => `
+      list.innerHTML = hiveReminders.map(r => `
         <div>
-          <strong>${formatDateTime(ins.createdAt)}</strong>
-          by ${ins.recordedBy}<br>
-          ${ins.notes ? `<p>Notes: ${ins.notes}</p>` : ""}
-          ${ins.transcript ? `<p>Transcript: ${ins.transcript}</p>` : ""}
-          ${ins.audioUrl ? `<audio controls src="${ins.audioUrl}"></audio>` : "<em>Audio pending sync</em>"}
-          <p><em>AI notes will appear here (Phase 2)</em></p>
+          <label>
+            <input type="checkbox" data-id="${r.id}" ${r.done ? "checked" : ""}>
+            ${r.text} — ${formatDate(r.dueDate)} ${r.done ? "<em>(done)</em>" : ""}
+          </label>
+          <button data-delete-reminder="${r.id}" style="margin-left:8px">Delete</button>
         </div>
-        <hr>
       `).join("");
+
+      list.querySelectorAll("input[type=checkbox]").forEach(cb => {
+        cb.onchange = () => toggleReminder(cb.dataset.id, cb.checked);
+      });
+      list.querySelectorAll("[data-delete-reminder]").forEach(btn => {
+        btn.onclick = async () => {
+          if (!confirm("Delete this reminder?")) return;
+          await deleteReminder(btn.dataset.deleteReminder);
+        };
+      });
     });
 
-    window.addEventListener("beforeunload", () => { if (unsubInspections) unsubInspections(); });
-
-    // Owner-only Danger Zone delete UI.
+    // ── Danger Zone (owner only) ──────────────────────────────────────────────
     if (apiary.ownerId === user.uid) {
       const dangerZone = document.getElementById("hive-danger-zone");
       const input = document.getElementById("delete-hive-name");
@@ -156,27 +197,60 @@
       const msg = document.getElementById("hive-danger-msg");
 
       dangerZone.classList.remove("hidden");
+      document.getElementById("hive-name-confirm-hint").textContent = hive.name;
 
-      btn.disabled = true;
       input.addEventListener("input", () => {
-        btn.disabled = input.value.trim() !== hive.name;
+        btn.disabled = input.value.trim() !== currentHive.name;
       });
 
       btn.onclick = async () => {
-        const typed = input.value.trim();
-        if (typed !== hive.name) return;
-
+        if (input.value.trim() !== currentHive.name) return;
+        btn.disabled = true;
+        msg.textContent = "Deleting...";
         try {
-          msg.textContent = "Deleting...";
-          btn.disabled = true;
           await deleteHiveDeep(hiveId);
           window.location.href = "/index.html";
         } catch (e) {
           msg.textContent = "Error: " + e.message;
-          btn.disabled = (input.value.trim() !== hive.name);
+          btn.disabled = (input.value.trim() !== currentHive.name);
         }
       };
     }
+
+    // ── Inspection History ────────────────────────────────────────────────────
+    unsubInspections = listenInspections(hiveId, async (inspections) => {
+      const list = document.getElementById("inspections-list");
+      if (inspections.length === 0) {
+        list.innerHTML = "<p>No inspections yet.</p>";
+        return;
+      }
+
+      // Resolve display names for all unique recorders
+      const uids = [...new Set(inspections.map(i => i.recordedBy))];
+      const nameMap = {};
+      await Promise.all(uids.map(async uid => {
+        nameMap[uid] = await getDisplayName(uid, user.uid);
+      }));
+
+      list.innerHTML = inspections.map(ins => `
+        <div>
+          <strong>${formatDateTime(ins.createdAt)}</strong>
+          by ${nameMap[ins.recordedBy] || "Unknown"}<br>
+          ${ins.notes ? `<p>Notes: ${ins.notes}</p>` : ""}
+          ${ins.transcript ? `<p>Transcript: ${ins.transcript}</p>` : ""}
+          ${ins.audioUrl
+            ? `<audio controls src="${ins.audioUrl}"></audio>`
+            : "<em>Audio pending sync</em>"
+          }
+        </div>
+        <hr>
+      `).join("");
+    });
+
+    window.addEventListener("beforeunload", () => {
+      if (unsubInspections) unsubInspections();
+      if (unsubReminders) unsubReminders();
+    });
   </script>
 </body>
 </html>

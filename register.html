@@ -21,7 +21,7 @@
   </label>
   <br>
   <div id="invite-section" class="hidden">
-    <input type="text" id="invite-code" placeholder="Invite code" maxlength="10">
+    <input type="text" id="invite-code" placeholder="Invite code (e.g. ABC123)" maxlength="10" autocomplete="off">
   </div>
   <br>
   <button id="btn-register">Create Account</button>
@@ -38,7 +38,9 @@
 
     document.getElementById("has-invite").onchange = (e) => {
       const section = document.getElementById("invite-section");
-      e.target.checked ? section.classList.remove("hidden") : section.classList.add("hidden");
+      e.target.checked
+        ? section.classList.remove("hidden")
+        : section.classList.add("hidden");
     };
 
     document.getElementById("btn-register").onclick = async () => {
@@ -48,24 +50,43 @@
       const hasInvite = document.getElementById("has-invite").checked;
       const inviteCode = document.getElementById("invite-code").value.trim().toUpperCase();
       const msg = document.getElementById("msg");
+      const btn = document.getElementById("btn-register");
 
       if (!name || !email || !password) {
         msg.textContent = "Please fill in all fields.";
         return;
       }
 
+      btn.disabled = true;
       msg.textContent = "Creating account...";
+
       try {
+        // Validate invite code before creating account (fail fast)
+        let apiary = null;
+        if (hasInvite && inviteCode) {
+          apiary = await getApiaryByInviteCode(inviteCode);
+          if (!apiary) {
+            msg.textContent = "Invalid invite code. Check it and try again.";
+            btn.disabled = false;
+            return;
+          }
+        }
+
         const user = await register(email, password, name);
 
-        if (hasInvite && inviteCode) {
-          const apiary = await getApiaryByInviteCode(inviteCode);
-          if (!apiary) { msg.textContent = "Invalid invite code."; return; }
+        if (apiary) {
           await joinApiary(apiary.id, user.uid);
+          // Store the joined apiary so the dashboard opens straight to it
+          localStorage.setItem("hv_apiaryId", apiary.id);
+          msg.textContent = `Account created and joined "${apiary.name}"! Redirecting...`;
+        } else {
+          msg.textContent = "Account created! You can join an existing apiary via Settings anytime.";
         }
-        // Redirect to dashboard — apiary setup happens there
+
+        // onAuthChange will redirect to /index.html
       } catch (e) {
         msg.textContent = "Error: " + e.message;
+        btn.disabled = false;
       }
     };
   </script>

@@ -1,11 +1,9 @@
-// offline.js — IndexedDB + localStorage offline sync logic
+// offline.js — IndexedDB offline sync logic
 
 const DB_NAME = "hivevoice";
 const DB_VERSION = 1;
 const STORE_AUDIO = "pending_audio";
 const STORE_META = "pending_meta";
-
-// ── IndexedDB Setup ───────────────────────────────────────────────────────────
 
 let _db = null;
 
@@ -27,7 +25,6 @@ export function openOfflineDB() {
   });
 }
 
-// Save audio blob locally for offline use
 export async function saveAudioOffline(localId, blob) {
   const db = await openOfflineDB();
   return new Promise((resolve, reject) => {
@@ -38,18 +35,17 @@ export async function saveAudioOffline(localId, blob) {
   });
 }
 
-// Save inspection metadata for offline use
 export async function saveMetaOffline(meta) {
   const db = await openOfflineDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_META, "readwrite");
+    // Preserve all meta fields (including notes) exactly as passed
     tx.objectStore(STORE_META).put(meta);
     tx.oncomplete = resolve;
     tx.onerror = (e) => reject(e.target.error);
   });
 }
 
-// Get all pending (unsynced) metas
 export async function getPendingMetas() {
   const db = await openOfflineDB();
   return new Promise((resolve, reject) => {
@@ -60,7 +56,6 @@ export async function getPendingMetas() {
   });
 }
 
-// Get audio blob by localId
 export async function getAudioBlob(localId) {
   const db = await openOfflineDB();
   return new Promise((resolve, reject) => {
@@ -71,7 +66,6 @@ export async function getAudioBlob(localId) {
   });
 }
 
-// Delete synced records
 export async function deleteSynced(localId) {
   const db = await openOfflineDB();
   return new Promise((resolve, reject) => {
@@ -85,43 +79,48 @@ export async function deleteSynced(localId) {
 
 // ── Sync Engine ───────────────────────────────────────────────────────────────
 
-// Called when app loads online. Syncs any pending offline recordings.
 export async function syncPending(apiaryId) {
   if (!navigator.onLine) return 0;
 
-  // Lazy import to avoid circular deps
   const { uploadAudio } = await import("./storage.js");
   const { saveInspection } = await import("./db.js");
 
   const pending = await getPendingMetas();
   let count = 0;
+  const errors = [];
 
   for (const meta of pending) {
     try {
       const blob = await getAudioBlob(meta.localId);
       let audioUrl = "";
       if (blob) {
-        audioUrl = await uploadAudio(blob, meta.localId, apiaryId);
+        // Use the meta's own apiaryId, not the currently active one — they may differ
+        audioUrl = await uploadAudio(blob, meta.localId, meta.apiaryId || apiaryId);
       }
       await saveInspection({
         hiveId: meta.hiveId,
-        apiaryId: meta.apiaryId,
+        apiaryId: meta.apiaryId || apiaryId,
         recordedBy: meta.recordedBy,
         audioUrl,
         transcript: "",
-        notes: "",
+        notes: meta.notes || "",   // Preserve offline-entered notes
         reminders: []
       });
       await deleteSynced(meta.localId);
       count++;
     } catch (err) {
       console.error("Sync failed for", meta.localId, err);
+      errors.push(meta.localId);
     }
   }
+
+  if (errors.length > 0) {
+    console.warn(`${errors.length} recording(s) failed to sync and will retry next time.`);
+  }
+
   return count;
 }
 
-// Count how many recordings are waiting
 export async function pendingCount() {
   const metas = await getPendingMetas();
   return metas.length;

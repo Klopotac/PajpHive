@@ -8,6 +8,7 @@ import {
   onAuthStateChanged,
   updateProfile
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { saveUserProfile } from "./db.js";
 
 export function getCurrentUser() {
   return auth.currentUser;
@@ -25,6 +26,8 @@ export async function signIn(email, password) {
 export async function register(email, password, displayName) {
   const cred = await createUserWithEmailAndPassword(auth, email, password);
   await updateProfile(cred.user, { displayName });
+  // Save profile to Firestore so partners can look up display names
+  await saveUserProfile(cred.user.uid, displayName, email);
   return cred.user;
 }
 

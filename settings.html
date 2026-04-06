@@ -17,13 +17,13 @@
 
   <section>
     <h2>My Apiaries</h2>
-    <div id="apiaries-list"></div>
+    <div id="apiaries-list"><p>Loading...</p></div>
   </section>
 
   <section>
-    <h2>Join Apiary</h2>
-    <p>Have an invite code? Join an existing apiary.</p>
-    <input type="text" id="join-invite-code" placeholder="Invite code" maxlength="10">
+    <h2>Join an Apiary</h2>
+    <p>Have an invite code from another beekeeper? Enter it below.</p>
+    <input type="text" id="join-invite-code" placeholder="Invite code (e.g. ABC123)" maxlength="10" autocomplete="off">
     <button id="btn-join-apiary">Join</button>
     <p id="join-apiary-msg"></p>
   </section>
@@ -42,10 +42,12 @@
 
   <script type="module">
     import { requireAuth, logOut, clearCachedApiaryId, cacheApiaryId, getCachedApiaryId } from "/js/auth.js";
-    import { getApiariesByUser, deleteApiaryDeep, getApiaryByInviteCode, joinApiary } from "/js/db.js";
-    import { db, messaging } from "/js/firebase-config.js";
-    import { doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-    import { buildNav } from "/js/ui.js";
+    import {
+      getApiariesByUser, deleteApiaryDeep, getApiaryByInviteCode,
+      joinApiary, leaveApiary, renameApiary, regenerateInviteCode, getDisplayName
+    } from "/js/db.js";
+    import { messaging } from "/js/firebase-config.js";
+    import { buildNav, copyToClipboard } from "/js/ui.js";
 
     buildNav("main-nav");
 
@@ -55,130 +57,208 @@
     document.getElementById("user-email").textContent = user.email;
 
     async function loadApiaries() {
-      const apiaries = await getApiariesByUser(user.uid);
       const list = document.getElementById("apiaries-list");
-      if (apiaries.length === 0) {
-        list.innerHTML = "<p>No apiaries found.</p>";
+      list.innerHTML = "<p>Loading...</p>";
+
+      let apiaries;
+      try {
+        apiaries = await getApiariesByUser(user.uid);
+      } catch (e) {
+        list.innerHTML = `<p>Failed to load apiaries: ${e.message}</p>`;
         return;
       }
-      list.innerHTML = apiaries.map(a => `
-        <div style="margin-bottom:12px">
+
+      if (apiaries.length === 0) {
+        list.innerHTML = "<p>No apiaries yet. Create one from the Dashboard or join one below.</p>";
+        return;
+      }
+
+      // Resolve member display names for all apiaries
+      const allUids = [...new Set(apiaries.flatMap(a => a.members))];
+      const nameMap = {};
+      await Promise.all(allUids.map(async uid => {
+        nameMap[uid] = await getDisplayName(uid, user.uid);
+      }));
+
+      list.innerHTML = apiaries.map(a => {
+        const isOwner = a.ownerId === user.uid;
+        const membersHtml = a.members.map(uid =>
+          `<li>${nameMap[uid] || uid}${uid === a.ownerId ? " (owner)" : ""}${uid === user.uid ? " — you" : ""}</li>`
+        ).join("");
+
+        return `
+        <div id="apiary-card-${a.id}" style="border:1px solid #ccc; padding:12px; margin-bottom:16px">
           <strong id="name-display-${a.id}">${a.name}</strong>
-          ${a.ownerId === user.uid ? `
-            <input type="text" id="name-input-${a.id}" value="${a.name}" style="margin-left:8px" maxlength="60">
-            <button onclick="renameApiary('${a.id}')">Rename</button>
-            <div style="margin-top:8px">
-              <div><strong>Danger Zone</strong>: this will delete the apiary and all related data.</div>
+          <br>
+          <ul>${membersHtml}</ul>
+
+          ${isOwner ? `
+            <div>
+              <strong>Invite Code:</strong>
+              <span id="invite-display-${a.id}">${a.inviteCode}</span>
+              <button onclick="copyInvite('${a.id}')">Copy</button>
+              <button onclick="regenInvite('${a.id}')">New Code</button>
+              <span id="invite-msg-${a.id}"></span>
+            </div>
+            <br>
+            <div>
+              <label>Rename: </label>
+              <input type="text" id="name-input-${a.id}" value="${a.name}" maxlength="60">
+              <button onclick="doRename('${a.id}')">Save</button>
+            </div>
+            <br>
+            <div style="border:1px solid red; padding:8px; margin-top:8px">
+              <strong>Danger Zone</strong>
+              <p>Permanently deletes this apiary and ALL its hives, inspections, and reminders.</p>
+              <p>Type <strong>${a.name}</strong> to confirm:</p>
               <input
                 type="text"
                 id="delete-apiary-name-${a.id}"
-                placeholder="Type the apiary name to confirm"
+                placeholder="Type apiary name to confirm"
                 maxlength="60"
-                style="margin-left:0; margin-top:6px"
+                autocomplete="off"
               >
-              <button id="btn-delete-apiary-${a.id}" disabled style="color:red; margin-left:8px">
-                Delete Apiary
-              </button>
+              <button id="btn-delete-apiary-${a.id}" disabled>Delete Apiary</button>
+              <span id="apiary-msg-${a.id}"></span>
             </div>
+          ` : `
+            <em>Joined as partner</em>
+            <br><br>
+            <button onclick="doLeave('${a.id}')">Leave this Apiary</button>
             <span id="apiary-msg-${a.id}"></span>
-          ` : "<em> (joined as partner)</em>"}
+          `}
         </div>
-      `).join("");
+        `;
+      }).join("");
 
-      // Wire up typed-name danger zone controls after render.
-      apiaries.forEach(a => {
-        if (a.ownerId !== user.uid) return;
+      // Wire up danger zone inputs after render
+      apiaries.filter(a => a.ownerId === user.uid).forEach(a => {
         const input = document.getElementById(`delete-apiary-name-${a.id}`);
         const btn = document.getElementById(`btn-delete-apiary-${a.id}`);
         if (!input || !btn) return;
-        btn.disabled = true;
-        btn.onclick = null;
         input.addEventListener("input", () => {
           btn.disabled = input.value.trim() !== a.name;
         });
-        btn.onclick = () => window.removeApiaryDeep(a.id, a.name);
+        btn.onclick = () => doDelete(a.id, a.name);
       });
     }
 
-    window.renameApiary = async (id) => {
-      const name = document.getElementById(`name-input-${id}`).value.trim();
-      const msg = document.getElementById(`apiary-msg-${id}`);
-      if (!name) { msg.textContent = "Name cannot be empty."; return; }
+    window.copyInvite = async (id) => {
+      const code = document.getElementById(`invite-display-${id}`)?.textContent;
+      if (!code) return;
+      await copyToClipboard(code);
+      const msg = document.getElementById(`invite-msg-${id}`);
+      if (msg) { msg.textContent = "Copied!"; setTimeout(() => msg.textContent = "", 2000); }
+    };
+
+    window.regenInvite = async (id) => {
+      if (!confirm("Generate a new invite code? The old code will stop working.")) return;
       try {
-        await updateDoc(doc(db, "apiaries", id), { name });
-        document.getElementById(`name-display-${id}`).textContent = name;
-        msg.textContent = "Updated!";
+        const newCode = await regenerateInviteCode(id);
+        const display = document.getElementById(`invite-display-${id}`);
+        if (display) display.textContent = newCode;
+        const msg = document.getElementById(`invite-msg-${id}`);
+        if (msg) { msg.textContent = "New code active."; setTimeout(() => msg.textContent = "", 2000); }
       } catch (e) {
-        msg.textContent = "Error: " + e.message;
+        alert("Error: " + e.message);
       }
     };
 
-    window.removeApiaryDeep = async (id, expectedName) => {
+    window.doRename = async (id) => {
+      const input = document.getElementById(`name-input-${id}`);
+      const display = document.getElementById(`name-display-${id}`);
+      const name = input?.value.trim();
+      if (!name) { alert("Name cannot be empty."); return; }
+      try {
+        await renameApiary(id, name);
+        if (display) display.textContent = name;
+        // Also update the danger zone hint text
+        const dangerInput = document.getElementById(`delete-apiary-name-${id}`);
+        if (dangerInput) dangerInput.value = "";
+        const btn = document.getElementById(`btn-delete-apiary-${id}`);
+        if (btn) btn.disabled = true;
+      } catch (e) {
+        alert("Error: " + e.message);
+      }
+    };
+
+    window.doDelete = async (id, expectedName) => {
       const input = document.getElementById(`delete-apiary-name-${id}`);
-      const typed = (input?.value || "").trim();
       const btn = document.getElementById(`btn-delete-apiary-${id}`);
       const msg = document.getElementById(`apiary-msg-${id}`);
+      const typed = input?.value.trim();
 
-      if (!btn) return;
-      if (typed !== expectedName) {
-        if (msg) msg.textContent = "Type the exact apiary name to enable deletion.";
-        btn.disabled = true;
-        return;
-      }
+      if (typed !== expectedName) return;
+
+      btn.disabled = true;
+      if (msg) msg.textContent = "Deleting...";
 
       try {
-        if (msg) msg.textContent = "Deleting...";
-        btn.disabled = true;
-
         await deleteApiaryDeep(id);
-
-        // If the deleted apiary was selected, clear cache so the dashboard won't try to load it.
         if (getCachedApiaryId() === id) clearCachedApiaryId();
-
         await loadApiaries();
       } catch (e) {
         if (msg) msg.textContent = "Error: " + e.message;
-        // Re-enable if still typed correctly.
-        btn.disabled = (typed !== expectedName);
+        btn.disabled = false;
+      }
+    };
+
+    window.doLeave = async (id) => {
+      if (!confirm("Leave this apiary? You will lose access to all its hives and recordings.")) return;
+      try {
+        await leaveApiary(id, user.uid);
+        if (getCachedApiaryId() === id) clearCachedApiaryId();
+        await loadApiaries();
+      } catch (e) {
+        const msg = document.getElementById(`apiary-msg-${id}`);
+        if (msg) msg.textContent = "Error: " + e.message;
+        else alert("Error: " + e.message);
       }
     };
 
     loadApiaries();
 
+    // ── Join Apiary ────────────────────────────────────────────────────────────
     document.getElementById("btn-join-apiary").onclick = async () => {
       const msg = document.getElementById("join-apiary-msg");
+      const btn = document.getElementById("btn-join-apiary");
       const code = document.getElementById("join-invite-code").value.trim().toUpperCase();
       if (!code) { msg.textContent = "Please enter an invite code."; return; }
+      btn.disabled = true;
       msg.textContent = "Joining...";
       try {
         const apiary = await getApiaryByInviteCode(code);
-        if (!apiary) { msg.textContent = "Invalid invite code."; return; }
+        if (!apiary) { msg.textContent = "Invalid invite code. Double-check and try again."; return; }
         await joinApiary(apiary.id, user.uid);
         cacheApiaryId(apiary.id);
         document.getElementById("join-invite-code").value = "";
-        msg.textContent = `Joined "${apiary.name}".`;
+        msg.textContent = `Joined "${apiary.name}"! Switch to it from the Dashboard.`;
         await loadApiaries();
       } catch (e) {
         msg.textContent = "Error: " + e.message;
+      } finally {
+        btn.disabled = false;
       }
     };
 
+    // ── Sign Out ───────────────────────────────────────────────────────────────
     document.getElementById("btn-signout").onclick = async () => {
       await logOut();
       clearCachedApiaryId();
       window.location.href = "/login.html";
     };
 
+    // ── Push Notifications ─────────────────────────────────────────────────────
     document.getElementById("btn-enable-push").onclick = async () => {
       const msg = document.getElementById("push-msg");
       if (!messaging) {
-        msg.textContent = "Push notifications not supported in this browser.";
+        msg.textContent = "Push notifications are not supported in this browser.";
         return;
       }
       try {
         const permission = await Notification.requestPermission();
         if (permission !== "granted") {
-          msg.textContent = "Notification permission denied.";
+          msg.textContent = "Notification permission denied. Enable it in your browser settings.";
           return;
         }
         msg.textContent = "Push notifications enabled.";

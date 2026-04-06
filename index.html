@@ -12,12 +12,21 @@
   <h1>HiveVoice</h1>
 
   <!-- Apiary selector bar -->
-  <div id="apiary-bar">
+  <div id="apiary-bar" class="hidden">
     <select id="apiary-select"></select>
     <button id="btn-new-apiary">+ New Apiary</button>
   </div>
 
-  <!-- New apiary form -->
+  <!-- First-time setup: no apiaries yet -->
+  <div id="first-apiary-form" class="hidden">
+    <h2>Welcome to HiveVoice!</h2>
+    <p>Create your first apiary to get started, or join an existing one via an invite code in Settings.</p>
+    <input type="text" id="first-apiary-name" placeholder="Apiary name (e.g. Garden Apiary)" maxlength="60">
+    <button id="btn-save-first-apiary">Create Apiary</button>
+    <p id="first-apiary-msg"></p>
+  </div>
+
+  <!-- New apiary inline form -->
   <div id="new-apiary-form" class="hidden">
     <input type="text" id="new-apiary-name" placeholder="Apiary name (e.g. Garden Apiary)" maxlength="60">
     <button id="btn-save-apiary">Create</button>
@@ -25,7 +34,16 @@
     <p id="new-apiary-msg"></p>
   </div>
 
-  <button id="btn-add-hive">+ Add Hive</button>
+  <!-- Invite code display (shown after creating an apiary) -->
+  <div id="invite-code-notice" class="hidden">
+    <p>Apiary created! Your invite code is: <strong id="new-invite-code-display"></strong></p>
+    <button id="btn-copy-new-invite">Copy Code</button>
+    <button id="btn-dismiss-invite">OK</button>
+  </div>
+
+  <div id="hive-controls" class="hidden">
+    <button id="btn-add-hive">+ Add Hive</button>
+  </div>
 
   <div id="add-hive-form" class="hidden">
     <input type="text" id="new-hive-name" placeholder="Hive name (e.g. Hive 1)" maxlength="60">
@@ -35,7 +53,7 @@
   </div>
 
   <div id="hives-list">
-    <p>Loading hives...</p>
+    <p>Loading...</p>
   </div>
 
   <nav id="main-nav"></nav>
@@ -43,7 +61,7 @@
   <script type="module">
     import { onAuthChange, getCachedApiaryId, cacheApiaryId } from "/js/auth.js";
     import { getApiariesByUser, createApiary, listenHives, createHive } from "/js/db.js";
-    import { buildNav, updateSyncBanner, formatDate } from "/js/ui.js";
+    import { buildNav, updateSyncBanner, formatDate, copyToClipboard } from "/js/ui.js";
     import { syncPending, pendingCount, openOfflineDB } from "/js/offline.js";
 
     let unsubHives = null;
@@ -62,19 +80,30 @@
     });
 
     async function init(user) {
-      apiaries = await getApiariesByUser(user.uid);
+      document.getElementById("hives-list").innerHTML = "<p>Loading...</p>";
 
-      if (apiaries.length === 0) {
-        // First time - create first apiary
-        const name = prompt("Welcome to HiveVoice! Enter your first apiary name:");
-        if (!name) return;
-        const result = await createApiary(user.uid, name);
-        cacheApiaryId(result.id);
-        alert(`Apiary created! Invite code for partners: ${result.inviteCode}`);
+      try {
         apiaries = await getApiariesByUser(user.uid);
+      } catch (e) {
+        document.getElementById("hives-list").innerHTML = `<p>Failed to load apiaries: ${e.message}. Check your connection and refresh.</p>`;
+        return;
       }
 
-      // Restore last used apiary or default to first
+      if (apiaries.length === 0) {
+        // First time — show inline form instead of prompt()
+        document.getElementById("first-apiary-form").classList.remove("hidden");
+        document.getElementById("hives-list").innerHTML = "";
+        return;
+      }
+
+      showDashboard(user);
+    }
+
+    async function showDashboard(user) {
+      document.getElementById("first-apiary-form").classList.add("hidden");
+      document.getElementById("apiary-bar").classList.remove("hidden");
+      document.getElementById("hive-controls").classList.remove("hidden");
+
       const cached = getCachedApiaryId();
       const match = apiaries.find(a => a.id === cached);
       apiaryId = match ? match.id : apiaries[0].id;
@@ -83,14 +112,60 @@
       buildApiarySelector();
       loadHives();
 
-      // Sync pending offline recordings
+      // Sync pending offline recordings silently — use banner, not alert
       if (navigator.onLine) {
-        const synced = await syncPending(apiaryId);
-        if (synced > 0) alert(`Synced ${synced} offline recording(s).`);
+        try {
+          const synced = await syncPending(apiaryId);
+          if (synced > 0) {
+            const banner = document.getElementById("sync-banner");
+            banner.textContent = `Synced ${synced} offline recording${synced > 1 ? "s" : ""}.`;
+            banner.classList.add("visible");
+            setTimeout(() => banner.classList.remove("visible"), 4000);
+          }
+        } catch (e) {
+          console.warn("Sync error:", e);
+        }
       }
       const pending = await pendingCount();
       updateSyncBanner(pending);
     }
+
+    // First-time apiary creation
+    document.getElementById("btn-save-first-apiary").onclick = async () => {
+      const name = document.getElementById("first-apiary-name").value.trim();
+      const msg = document.getElementById("first-apiary-msg");
+      if (!name) { msg.textContent = "Please enter a name."; return; }
+      const btn = document.getElementById("btn-save-first-apiary");
+      btn.disabled = true;
+      msg.textContent = "Creating...";
+      try {
+        const { getCurrentUser } = await import("/js/auth.js");
+        const user = getCurrentUser();
+        const result = await createApiary(user.uid, name);
+        cacheApiaryId(result.id);
+        apiaries = await getApiariesByUser(user.uid);
+        await showDashboard(user);
+        showInviteNotice(result.inviteCode);
+      } catch (e) {
+        msg.textContent = "Error: " + e.message;
+        btn.disabled = false;
+      }
+    };
+
+    function showInviteNotice(code) {
+      const notice = document.getElementById("invite-code-notice");
+      document.getElementById("new-invite-code-display").textContent = code;
+      notice.classList.remove("hidden");
+    }
+
+    document.getElementById("btn-copy-new-invite").onclick = async () => {
+      const code = document.getElementById("new-invite-code-display").textContent;
+      await copyToClipboard(code);
+      document.getElementById("btn-copy-new-invite").textContent = "Copied!";
+    };
+    document.getElementById("btn-dismiss-invite").onclick = () => {
+      document.getElementById("invite-code-notice").classList.add("hidden");
+    };
 
     function buildApiarySelector() {
       const select = document.getElementById("apiary-select");
@@ -107,7 +182,11 @@
     function loadHives() {
       if (unsubHives) unsubHives();
       document.getElementById("hives-list").innerHTML = "<p>Loading hives...</p>";
-      unsubHives = listenHives(apiaryId, renderHives);
+      try {
+        unsubHives = listenHives(apiaryId, renderHives);
+      } catch (e) {
+        document.getElementById("hives-list").innerHTML = `<p>Failed to load hives: ${e.message}</p>`;
+      }
     }
 
     function renderHives(hives) {
@@ -132,19 +211,19 @@
     };
     document.getElementById("btn-cancel-apiary").onclick = () => {
       document.getElementById("new-apiary-form").classList.add("hidden");
+      document.getElementById("new-apiary-msg").textContent = "";
     };
     document.getElementById("btn-save-apiary").onclick = async () => {
       const name = document.getElementById("new-apiary-name").value.trim();
       const msg = document.getElementById("new-apiary-msg");
+      const btn = document.getElementById("btn-save-apiary");
       if (!name) { msg.textContent = "Please enter a name."; return; }
+      btn.disabled = true;
+      msg.textContent = "Creating...";
       try {
-        // Get current user
         const { getCurrentUser } = await import("/js/auth.js");
         const user = getCurrentUser();
         const result = await createApiary(user.uid, name);
-        alert(`Apiary "${name}" created! Invite code: ${result.inviteCode}`);
-        // Refresh list and switch to new apiary
-        const { getApiariesByUser } = await import("/js/db.js");
         apiaries = await getApiariesByUser(user.uid);
         apiaryId = result.id;
         cacheApiaryId(apiaryId);
@@ -152,8 +231,12 @@
         loadHives();
         document.getElementById("new-apiary-name").value = "";
         document.getElementById("new-apiary-form").classList.add("hidden");
+        msg.textContent = "";
+        showInviteNotice(result.inviteCode);
       } catch (e) {
         msg.textContent = "Error: " + e.message;
+      } finally {
+        btn.disabled = false;
       }
     };
 
@@ -162,17 +245,22 @@
     };
     document.getElementById("btn-cancel-hive").onclick = () => {
       document.getElementById("add-hive-form").classList.add("hidden");
+      document.getElementById("add-hive-msg").textContent = "";
     };
     document.getElementById("btn-save-hive").onclick = async () => {
       const name = document.getElementById("new-hive-name").value.trim();
       const msg = document.getElementById("add-hive-msg");
+      const btn = document.getElementById("btn-save-hive");
       if (!name) { msg.textContent = "Please enter a hive name."; return; }
+      btn.disabled = true;
       try {
         await createHive(apiaryId, name);
         document.getElementById("new-hive-name").value = "";
         document.getElementById("add-hive-form").classList.add("hidden");
       } catch (e) {
         msg.textContent = "Error: " + e.message;
+      } finally {
+        btn.disabled = false;
       }
     };
 
