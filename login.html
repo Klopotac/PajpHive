@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HiveVoice — Login</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <h1>HiveVoice</h1>
+  <h2>Sign In</h2>
+  <input type="email" id="email" placeholder="Email" autocomplete="email">
+  <br>
+  <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+  <br>
+  <button id="btn-login">Sign In</button>
+  <p id="msg"></p>
+  <p>No account? <a href="/register.html">Register</a></p>
+
+  <script type="module">
+    import { signIn, onAuthChange } from "/js/auth.js";
+
+    const params = new URLSearchParams(window.location.search);
+    const returnTo = params.get("return") || "/index.html";
+
+    // If already logged in, redirect
+    onAuthChange((user) => {
+      if (user) window.location.href = returnTo;
+    });
+
+    document.getElementById("btn-login").onclick = async () => {
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+      const msg = document.getElementById("msg");
+      msg.textContent = "Signing in...";
+      try {
+        await signIn(email, password);
+        // onAuthChange will redirect
+      } catch (e) {
+        msg.textContent = "Error: " + e.message;
+      }
+    };
+  </script>
+</body>
+</html>

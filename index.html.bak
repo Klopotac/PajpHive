@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HiveVoice — Dashboard</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <div id="sync-banner"></div>
+  <h1>HiveVoice</h1>
+  <p id="apiary-name"></p>
+
+  <button id="btn-add-hive">+ Add Hive</button>
+
+  <div id="add-hive-form" class="hidden">
+    <input type="text" id="new-hive-name" placeholder="Hive name (e.g. Hive 1)" maxlength="60">
+    <button id="btn-save-hive">Save</button>
+    <button id="btn-cancel-hive">Cancel</button>
+    <p id="add-hive-msg"></p>
+  </div>
+
+  <div id="hives-list">
+    <p>Loading hives...</p>
+  </div>
+
+  <nav id="main-nav"></nav>
+
+  <script type="module">
+    import { onAuthChange, getCachedApiaryId, cacheApiaryId } from "/js/auth.js";
+    import { getApiaryByUser, createApiary, listenHives, createHive } from "/js/db.js";
+    import { buildNav, updateSyncBanner, formatDate } from "/js/ui.js";
+    import { syncPending, pendingCount, openOfflineDB } from "/js/offline.js";
+
+    let unsubHives = null;
+    let apiaryId = null;
+
+    buildNav("main-nav");
+    openOfflineDB();
+
+    onAuthChange(async (user) => {
+      if (!user) {
+        window.location.href = "/login.html";
+        return;
+      }
+      await init(user);
+    });
+
+    async function init(user) {
+      let apiary = null;
+      const cached = getCachedApiaryId();
+
+      if (cached) {
+        apiaryId = cached;
+      } else {
+        apiary = await getApiaryByUser(user.uid);
+        if (apiary) {
+          apiaryId = apiary.id;
+          cacheApiaryId(apiaryId);
+        }
+      }
+
+      if (!apiaryId) {
+        // First login: prompt to create apiary
+        const name = prompt("Welcome! Enter your apiary name:");
+        if (!name) return;
+        const result = await createApiary(user.uid, name);
+        apiaryId = result.id;
+        cacheApiaryId(apiaryId);
+        alert(`Apiary created! Your invite code: ${result.inviteCode}`);
+      }
+
+      if (!apiary) apiary = await import("/js/db.js").then(m => m.getApiary(apiaryId));
+      if (apiary) document.getElementById("apiary-name").textContent = apiary.name;
+
+      // Sync pending offline recordings
+      if (navigator.onLine) {
+        const synced = await syncPending(apiaryId);
+        if (synced > 0) alert(`Synced ${synced} offline recording(s).`);
+      }
+      const pending = await pendingCount();
+      updateSyncBanner(pending);
+
+      // Listen to hives in real time
+      unsubHives = listenHives(apiaryId, renderHives);
+    }
+
+    function renderHives(hives) {
+      const list = document.getElementById("hives-list");
+      if (hives.length === 0) {
+        list.innerHTML = "<p>No hives yet. Add your first hive!</p>";
+        return;
+      }
+      list.innerHTML = hives.map(h => `
+        <div>
+          <strong>${h.name}</strong>
+          Last inspection: ${formatDate(h.lastInspection)}<br>
+          <a href="/hive.html?id=${h.id}">Open Recording</a> |
+          <a href="/hive-detail.html?id=${h.id}">Details</a>
+        </div>
+        <hr>
+      `).join("");
+    }
+
+    document.getElementById("btn-add-hive").onclick = () => {
+      document.getElementById("add-hive-form").classList.remove("hidden");
+    };
+    document.getElementById("btn-cancel-hive").onclick = () => {
+      document.getElementById("add-hive-form").classList.add("hidden");
+    };
+    document.getElementById("btn-save-hive").onclick = async () => {
+      const name = document.getElementById("new-hive-name").value.trim();
+      const msg = document.getElementById("add-hive-msg");
+      if (!name) { msg.textContent = "Please enter a hive name."; return; }
+      try {
+        await createHive(apiaryId, name);
+        document.getElementById("new-hive-name").value = "";
+        document.getElementById("add-hive-form").classList.add("hidden");
+      } catch (e) {
+        msg.textContent = "Error: " + e.message;
+      }
+    };
+
+    window.addEventListener("beforeunload", () => { if (unsubHives) unsubHives(); });
+  </script>
+</body>
+</html>

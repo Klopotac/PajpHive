@@ -1,0 +1,7 @@
+/* HiveVoice - Minimal functional CSS only. Styling added in Phase 2. */
+.hidden { display: none; }
+.visible { display: block; }
+#recording-indicator { display: none; }
+#recording-indicator.active { display: block; }
+#sync-banner { display: none; }
+#sync-banner.visible { display: block; }

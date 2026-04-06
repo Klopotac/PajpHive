@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HiveVoice — Partners</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <div id="sync-banner"></div>
+  <h1>Partners</h1>
+
+  <div id="apiary-bar">
+    <select id="apiary-select"></select>
+  </div>
+
+  <p>Share your invite code so partners can join this apiary (max 3 members total).</p>
+
+  <section>
+    <h2>Current Members</h2>
+    <div id="members-list"><p>Loading...</p></div>
+  </section>
+
+  <section>
+    <h2>Invite Code</h2>
+    <p id="invite-code-display"></p>
+    <button id="btn-copy-invite">Copy Invite Code</button>
+    <button id="btn-new-invite">Generate New Code</button>
+    <p id="invite-msg"></p>
+  </section>
+
+  <nav id="main-nav"></nav>
+
+  <script type="module">
+    import { requireAuth, getCachedApiaryId, cacheApiaryId } from "/js/auth.js";
+    import { getApiary, getApiariesByUser } from "/js/db.js";
+    import { db } from "/js/firebase-config.js";
+    import { doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { buildNav, copyToClipboard, generateInviteCode } from "/js/ui.js";
+
+    buildNav("main-nav");
+
+    const user = await requireAuth();
+    let apiaries = await getApiariesByUser(user.uid);
+    let apiaryId = getCachedApiaryId();
+
+    if (!apiaries.find(a => a.id === apiaryId)) apiaryId = apiaries[0]?.id;
+
+    // Build apiary selector
+    const select = document.getElementById("apiary-select");
+    select.innerHTML = apiaries.map(a =>
+      `<option value="${a.id}"${a.id === apiaryId ? " selected" : ""}>${a.name}</option>`
+    ).join("");
+    select.onchange = () => {
+      apiaryId = select.value;
+      cacheApiaryId(apiaryId);
+      loadApiary();
+    };
+
+    async function loadApiary() {
+      const apiary = await getApiary(apiaryId);
+      if (!apiary) return;
+
+      document.getElementById("invite-code-display").textContent = `Invite Code: ${apiary.inviteCode}`;
+
+      const membersList = document.getElementById("members-list");
+      membersList.innerHTML = apiary.members.map((uid, i) =>
+        `<div>${i + 1}. ${uid === user.uid ? "You" : "Partner (uid: " + uid + ")"}</div>`
+      ).join("") || "<p>No members found.</p>";
+
+      const full = apiary.members.length >= 3;
+      document.getElementById("btn-new-invite").disabled = full;
+      document.getElementById("invite-msg").textContent = full ? "Apiary is full (3/3 members)." : "";
+
+      document.getElementById("btn-copy-invite").onclick = async () => {
+        const ok = await copyToClipboard(apiary.inviteCode);
+        document.getElementById("invite-msg").textContent = ok ? "Code copied!" : "Copy failed.";
+      };
+
+      document.getElementById("btn-new-invite").onclick = async () => {
+        const newCode = generateInviteCode();
+        try {
+          await updateDoc(doc(db, "apiaries", apiaryId), { inviteCode: newCode });
+          document.getElementById("invite-code-display").textContent = `Invite Code: ${newCode}`;
+          document.getElementById("invite-msg").textContent = "New code generated.";
+        } catch (e) {
+          document.getElementById("invite-msg").textContent = "Error: " + e.message;
+        }
+      };
+    }
+
+    loadApiary();
+  </script>
+</body>
+</html>

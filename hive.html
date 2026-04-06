@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HiveVoice — Recording</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <div id="sync-banner"></div>
+
+  <div id="screen-loading">
+    <p>Loading hive...</p>
+  </div>
+
+  <div id="screen-recording" class="hidden">
+    <h1 id="hive-name-display">Hive</h1>
+    <div id="recording-indicator">
+      <p>&#x1F399; Listening...</p>
+      <p id="timer-display">00:00</p>
+    </div>
+    <p id="status-msg"></p>
+    <button id="btn-stop" class="hidden">Stop Recording</button>
+    <div id="post-record" class="hidden">
+      <p>Recording saved.</p>
+      <textarea id="manual-notes" placeholder="Add manual notes (optional)" rows="4"></textarea>
+      <button id="btn-save">Done &amp; Sync</button>
+      <p id="save-msg"></p>
+    </div>
+    <br>
+    <a href="/index.html">Back to Dashboard</a>
+  </div>
+
+  <div id="screen-success" class="hidden">
+    <h2>Saved!</h2>
+    <p id="success-hive-name"></p>
+    <p>Your recording has been saved.</p>
+    <a href="/index.html">Dashboard</a> |
+    <a id="link-details" href="#">View Hive Details</a>
+  </div>
+
+  <div id="screen-error" class="hidden">
+    <h2>Something went wrong</h2>
+    <p id="error-msg-detail"></p>
+    <a href="/index.html">Back to Dashboard</a>
+  </div>
+
+  <script type="module">
+    import { onAuthChange, getCachedApiaryId } from "/js/auth.js";
+    import { getHive, getApiary, saveInspection } from "/js/db.js";
+    import { uploadAudio } from "/js/storage.js";
+    import {
+      requestMicPermission, startRecording, stopRecording,
+      releaseMic, formatTime, acquireWakeLock, releaseWakeLock
+    } from "/js/recording.js";
+    import {
+      saveAudioOffline, saveMetaOffline, pendingCount, openOfflineDB
+    } from "/js/offline.js";
+    import { generateLocalId, updateSyncBanner } from "/js/ui.js";
+
+    const params = new URLSearchParams(window.location.search);
+    const hiveId = params.get("id");
+
+    let wakeLock = null;
+    let audioBlob = null;
+    let hive = null;
+    let currentUser = null;
+    let apiaryId = null;
+
+    openOfflineDB();
+
+    function show(screenId) {
+      ["screen-loading","screen-recording","screen-success","screen-error"].forEach(id => {
+        document.getElementById(id).classList.add("hidden");
+      });
+      document.getElementById(screenId).classList.remove("hidden");
+    }
+
+    function showError(msg) {
+      document.getElementById("error-msg-detail").textContent = msg;
+      show("screen-error");
+    }
+
+    if (!hiveId) {
+      showError("No hive ID found in URL. Please tap the NFC chip again.");
+    }
+
+    onAuthChange(async (user) => {
+      if (!user) {
+        // Store the hive URL and redirect to login so user can come back
+        const returnPath = window.location.pathname + window.location.search;
+        window.location.href = `/login.html?return=${encodeURIComponent(returnPath)}`;
+        return;
+      }
+      currentUser = user;
+      apiaryId = getCachedApiaryId();
+      await initRecordingPage();
+    });
+
+    async function initRecordingPage() {
+      if (!hiveId) return;
+
+      // Load hive data
+      hive = await getHive(hiveId);
+      if (!hive) { showError("Hive not found. Check the NFC chip URL."); return; }
+
+      // Hardening: require membership in the hive's parent apiary.
+      const apiary = await getApiary(hive.apiaryId);
+      if (!apiary || !apiary.members.includes(currentUser.uid)) {
+        showError("You do not have access to this hive.");
+        return;
+      }
+
+      // Ensure saves are associated with the correct apiary for this hive.
+      apiaryId = hive.apiaryId;
+
+      document.getElementById("hive-name-display").textContent = hive.name;
+      document.title = `HiveVoice — ${hive.name}`;
+      show("screen-recording");
+
+      // Check pending sync count
+      const pending = await pendingCount();
+      updateSyncBanner(pending);
+
+      // Request mic permission
+      const hasPermission = await requestMicPermission();
+      if (!hasPermission) {
+        document.getElementById("status-msg").textContent =
+          "Microphone access denied. Please allow microphone in browser settings.";
+        return;
+      }
+
+      // Acquire wake lock
+      wakeLock = await acquireWakeLock();
+
+      // Auto-start recording after 1.5 seconds
+      document.getElementById("status-msg").textContent = "Starting in 1.5 seconds...";
+      setTimeout(() => beginRecording(), 1500);
+    }
+
+    function beginRecording() {
+      document.getElementById("status-msg").textContent = "";
+      document.getElementById("recording-indicator").classList.add("active");
+      document.getElementById("btn-stop").classList.remove("hidden");
+
+      startRecording((seconds) => {
+        document.getElementById("timer-display").textContent = formatTime(seconds);
+      });
+    }
+
+    document.getElementById("btn-stop").onclick = async () => {
+      document.getElementById("btn-stop").disabled = true;
+      document.getElementById("recording-indicator").classList.remove("active");
+      document.getElementById("status-msg").textContent = "Processing...";
+
+      audioBlob = await stopRecording();
+      releaseMic();
+      releaseWakeLock(wakeLock);
+
+      document.getElementById("status-msg").textContent = "Recording complete.";
+      document.getElementById("post-record").classList.remove("hidden");
+    };
+
+    document.getElementById("btn-save").onclick = async () => {
+      const saveMsg = document.getElementById("save-msg");
+      const notes = document.getElementById("manual-notes").value.trim();
+      document.getElementById("btn-save").disabled = true;
+      saveMsg.textContent = "Saving...";
+
+      const localId = generateLocalId();
+
+      if (!navigator.onLine) {
+        // Save offline
+        try {
+          if (audioBlob) await saveAudioOffline(localId, audioBlob);
+          await saveMetaOffline({
+            localId,
+            hiveId: hive.id,
+            apiaryId: apiaryId || hive.apiaryId,
+            recordedBy: currentUser.uid,
+            notes
+          });
+          showSuccess();
+        } catch (e) {
+          saveMsg.textContent = "Offline save failed: " + e.message;
+          document.getElementById("btn-save").disabled = false;
+        }
+        return;
+      }
+
+      // Save online
+      try {
+        let audioUrl = "";
+        const effApiaryId = apiaryId || hive.apiaryId;
+        if (audioBlob) {
+          audioUrl = await uploadAudio(audioBlob, localId, effApiaryId);
+        }
+
+        // PHASE 2: AI PROCESSING
+        // async function processWithAI(audioBlob, inspectionId) {
+        //   1. Send audioBlob to OpenAI Whisper API → get transcript
+        //   2. Send transcript to GPT-4 with a prompt to extract:
+        //      - Clean written notes
+        //      - Any reminders/tasks mentioned (with dates if specified)
+        //   3. Save transcript, notes, reminders back to Firestore
+        //   4. Trigger push notification to all partners: "New inspection note for [Hive Name]"
+        // }
+
+        await saveInspection({
+          hiveId: hive.id,
+          apiaryId: effApiaryId,
+          recordedBy: currentUser.uid,
+          audioUrl,
+          transcript: "",
+          notes: notes,
+          reminders: []
+        });
+        showSuccess();
+      } catch (e) {
+        saveMsg.textContent = "Save failed: " + e.message;
+        document.getElementById("btn-save").disabled = false;
+      }
+    };
+
+    function showSuccess() {
+      document.getElementById("success-hive-name").textContent = hive.name;
+      document.getElementById("link-details").href = `/hive-detail.html?id=${hive.id}`;
+      show("screen-success");
+    }
+  </script>
+</body>
+</html>

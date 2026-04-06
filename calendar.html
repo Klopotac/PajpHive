@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HiveVoice — Calendar</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <div id="sync-banner"></div>
+  <h1>Shared Calendar</h1>
+
+  <div id="calendar-controls">
+    <button id="btn-prev">&larr;</button>
+    <span id="month-label"></span>
+    <button id="btn-next">&rarr;</button>
+  </div>
+
+  <table id="calendar-grid" border="1">
+    <thead>
+      <tr>
+        <th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th>
+      </tr>
+    </thead>
+    <tbody id="calendar-body"></tbody>
+  </table>
+
+  <section>
+    <h2 id="selected-date-label">Select a date</h2>
+    <div id="day-tasks"><p>Tap a date to see tasks.</p></div>
+  </section>
+
+  <nav id="main-nav"></nav>
+
+  <script type="module">
+    import { requireAuth, getCachedApiaryId } from "/js/auth.js";
+    import { listenReminders, toggleReminder } from "/js/db.js";
+    import { buildNav } from "/js/ui.js";
+
+    buildNav("main-nav");
+
+    const user = await requireAuth();
+    const apiaryId = getCachedApiaryId();
+
+    let reminders = [];
+    let unsubReminders = null;
+    let currentYear = new Date().getFullYear();
+    let currentMonth = new Date().getMonth(); // 0-indexed
+    let selectedDate = null;
+
+    if (apiaryId) {
+      unsubReminders = listenReminders(apiaryId, (data) => {
+        reminders = data;
+        renderCalendar();
+        if (selectedDate) showDayTasks(selectedDate);
+      });
+    }
+
+    function renderCalendar() {
+      const label = document.getElementById("month-label");
+      label.textContent = new Date(currentYear, currentMonth, 1)
+        .toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+      const body = document.getElementById("calendar-body");
+      body.innerHTML = "";
+
+      const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+      // Build date → reminders map
+      const dayMap = {};
+      reminders.forEach(r => {
+        if (!r.dueDate) return;
+        const d = r.dueDate.toDate ? r.dueDate.toDate() : new Date(r.dueDate);
+        if (d.getFullYear() === currentYear && d.getMonth() === currentMonth) {
+          const key = d.getDate();
+          if (!dayMap[key]) dayMap[key] = 0;
+          dayMap[key]++;
+        }
+      });
+
+      let day = 1;
+      for (let row = 0; row < 6; row++) {
+        const tr = document.createElement("tr");
+        for (let col = 0; col < 7; col++) {
+          const td = document.createElement("td");
+          if (row === 0 && col < firstDay || day > daysInMonth) {
+            td.textContent = "";
+          } else {
+            const d = day;
+            td.textContent = d + (dayMap[d] ? ` (${dayMap[d]})` : "");
+            td.onclick = () => {
+              selectedDate = new Date(currentYear, currentMonth, d);
+              showDayTasks(selectedDate);
+            };
+            day++;
+          }
+          tr.appendChild(td);
+        }
+        body.appendChild(tr);
+        if (day > daysInMonth) break;
+      }
+    }
+
+    function showDayTasks(date) {
+      const label = document.getElementById("selected-date-label");
+      label.textContent = date.toLocaleDateString(undefined, { weekday:"long", month:"long", day:"numeric" });
+
+      const container = document.getElementById("day-tasks");
+      const dayTasks = reminders.filter(r => {
+        if (!r.dueDate) return false;
+        const d = r.dueDate.toDate ? r.dueDate.toDate() : new Date(r.dueDate);
+        return d.getFullYear() === date.getFullYear() &&
+               d.getMonth() === date.getMonth() &&
+               d.getDate() === date.getDate();
+      });
+
+      if (dayTasks.length === 0) {
+        container.innerHTML = "<p>No tasks for this day.</p>";
+        return;
+      }
+
+      container.innerHTML = dayTasks.map(r => `
+        <div>
+          <label>
+            <input type="checkbox" data-id="${r.id}" ${r.done ? "checked" : ""}>
+            ${r.text} ${r.done ? "<em>(done)</em>" : ""}
+          </label>
+        </div>
+      `).join("");
+
+      container.querySelectorAll("input[type=checkbox]").forEach(cb => {
+        cb.onchange = async () => {
+          await toggleReminder(cb.dataset.id, cb.checked);
+        };
+      });
+    }
+
+    document.getElementById("btn-prev").onclick = () => {
+      currentMonth--;
+      if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+      renderCalendar();
+    };
+    document.getElementById("btn-next").onclick = () => {
+      currentMonth++;
+      if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+      renderCalendar();
+    };
+
+    renderCalendar();
+    window.addEventListener("beforeunload", () => { if (unsubReminders) unsubReminders(); });
+  </script>
+</body>
+</html>

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HiveVoice — Dashboard</title>
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="manifest" href="/manifest.json">
+</head>
+<body>
+  <div id="sync-banner"></div>
+  <h1>HiveVoice</h1>
+
+  <!-- Apiary selector bar -->
+  <div id="apiary-bar">
+    <select id="apiary-select"></select>
+    <button id="btn-new-apiary">+ New Apiary</button>
+  </div>
+
+  <!-- New apiary form -->
+  <div id="new-apiary-form" class="hidden">
+    <input type="text" id="new-apiary-name" placeholder="Apiary name (e.g. Garden Apiary)" maxlength="60">
+    <button id="btn-save-apiary">Create</button>
+    <button id="btn-cancel-apiary">Cancel</button>
+    <p id="new-apiary-msg"></p>
+  </div>
+
+  <button id="btn-add-hive">+ Add Hive</button>
+
+  <div id="add-hive-form" class="hidden">
+    <input type="text" id="new-hive-name" placeholder="Hive name (e.g. Hive 1)" maxlength="60">
+    <button id="btn-save-hive">Save</button>
+    <button id="btn-cancel-hive">Cancel</button>
+    <p id="add-hive-msg"></p>
+  </div>
+
+  <div id="hives-list">
+    <p>Loading hives...</p>
+  </div>
+
+  <nav id="main-nav"></nav>
+
+  <script type="module">
+    import { onAuthChange, getCachedApiaryId, cacheApiaryId } from "/js/auth.js";
+    import { getApiariesByUser, createApiary, listenHives, createHive } from "/js/db.js";
+    import { buildNav, updateSyncBanner, formatDate } from "/js/ui.js";
+    import { syncPending, pendingCount, openOfflineDB } from "/js/offline.js";
+
+    let unsubHives = null;
+    let apiaryId = null;
+    let apiaries = [];
+
+    buildNav("main-nav");
+    openOfflineDB();
+
+    onAuthChange(async (user) => {
+      if (!user) {
+        window.location.href = "/login.html";
+        return;
+      }
+      await init(user);
+    });
+
+    async function init(user) {
+      apiaries = await getApiariesByUser(user.uid);
+
+      if (apiaries.length === 0) {
+        // First time - create first apiary
+        const name = prompt("Welcome to HiveVoice! Enter your first apiary name:");
+        if (!name) return;
+        const result = await createApiary(user.uid, name);
+        cacheApiaryId(result.id);
+        alert(`Apiary created! Invite code for partners: ${result.inviteCode}`);
+        apiaries = await getApiariesByUser(user.uid);
+      }
+
+      // Restore last used apiary or default to first
+      const cached = getCachedApiaryId();
+      const match = apiaries.find(a => a.id === cached);
+      apiaryId = match ? match.id : apiaries[0].id;
+      cacheApiaryId(apiaryId);
+
+      buildApiarySelector();
+      loadHives();
+
+      // Sync pending offline recordings
+      if (navigator.onLine) {
+        const synced = await syncPending(apiaryId);
+        if (synced > 0) alert(`Synced ${synced} offline recording(s).`);
+      }
+      const pending = await pendingCount();
+      updateSyncBanner(pending);
+    }
+
+    function buildApiarySelector() {
+      const select = document.getElementById("apiary-select");
+      select.innerHTML = apiaries.map(a =>
+        `<option value="${a.id}"${a.id === apiaryId ? " selected" : ""}>${a.name}</option>`
+      ).join("");
+      select.onchange = () => {
+        apiaryId = select.value;
+        cacheApiaryId(apiaryId);
+        loadHives();
+      };
+    }
+
+    function loadHives() {
+      if (unsubHives) unsubHives();
+      document.getElementById("hives-list").innerHTML = "<p>Loading hives...</p>";
+      unsubHives = listenHives(apiaryId, renderHives);
+    }
+
+    function renderHives(hives) {
+      const list = document.getElementById("hives-list");
+      if (hives.length === 0) {
+        list.innerHTML = "<p>No hives yet. Add your first hive!</p>";
+        return;
+      }
+      list.innerHTML = hives.map(h => `
+        <div>
+          <strong>${h.name}</strong><br>
+          Last inspection: ${formatDate(h.lastInspection)}<br>
+          <a href="/hive.html?id=${h.id}">Open Recording</a> |
+          <a href="/hive-detail.html?id=${h.id}">Details</a>
+        </div>
+        <hr>
+      `).join("");
+    }
+
+    document.getElementById("btn-new-apiary").onclick = () => {
+      document.getElementById("new-apiary-form").classList.remove("hidden");
+    };
+    document.getElementById("btn-cancel-apiary").onclick = () => {
+      document.getElementById("new-apiary-form").classList.add("hidden");
+    };
+    document.getElementById("btn-save-apiary").onclick = async () => {
+      const name = document.getElementById("new-apiary-name").value.trim();
+      const msg = document.getElementById("new-apiary-msg");
+      if (!name) { msg.textContent = "Please enter a name."; return; }
+      try {
+        // Get current user
+        const { getCurrentUser } = await import("/js/auth.js");
+        const user = getCurrentUser();
+        const result = await createApiary(user.uid, name);
+        alert(`Apiary "${name}" created! Invite code: ${result.inviteCode}`);
+        // Refresh list and switch to new apiary
+        const { getApiariesByUser } = await import("/js/db.js");
+        apiaries = await getApiariesByUser(user.uid);
+        apiaryId = result.id;
+        cacheApiaryId(apiaryId);
+        buildApiarySelector();
+        loadHives();
+        document.getElementById("new-apiary-name").value = "";
+        document.getElementById("new-apiary-form").classList.add("hidden");
+      } catch (e) {
+        msg.textContent = "Error: " + e.message;
+      }
+    };
+
+    document.getElementById("btn-add-hive").onclick = () => {
+      document.getElementById("add-hive-form").classList.remove("hidden");
+    };
+    document.getElementById("btn-cancel-hive").onclick = () => {
+      document.getElementById("add-hive-form").classList.add("hidden");
+    };
+    document.getElementById("btn-save-hive").onclick = async () => {
+      const name = document.getElementById("new-hive-name").value.trim();
+      const msg = document.getElementById("add-hive-msg");
+      if (!name) { msg.textContent = "Please enter a hive name."; return; }
+      try {
+        await createHive(apiaryId, name);
+        document.getElementById("new-hive-name").value = "";
+        document.getElementById("add-hive-form").classList.add("hidden");
+      } catch (e) {
+        msg.textContent = "Error: " + e.message;
+      }
+    };
+
+    window.addEventListener("beforeunload", () => { if (unsubHives) unsubHives(); });
+  </script>
+</body>
+</html>

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HiveVoice — Settings</title>
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <h1>Settings</h1>
+
+  <section>
+    <h2>Profile</h2>
+    <p>Name: <span id="user-name"></span></p>
+    <p>Email: <span id="user-email"></span></p>
+  </section>
+
+  <section>
+    <h2>My Apiaries</h2>
+    <div id="apiaries-list"></div>
+  </section>
+
+  <section>
+    <h2>Join Apiary</h2>
+    <p>Have an invite code? Join an existing apiary.</p>
+    <input type="text" id="join-invite-code" placeholder="Invite code" maxlength="10">
+    <button id="btn-join-apiary">Join</button>
+    <p id="join-apiary-msg"></p>
+  </section>
+
+  <section>
+    <h2>Notifications</h2>
+    <button id="btn-enable-push">Enable Push Notifications</button>
+    <p id="push-msg"></p>
+  </section>
+
+  <section>
+    <button id="btn-signout">Sign Out</button>
+  </section>
+
+  <nav id="main-nav"></nav>
+
+  <script type="module">
+    import { requireAuth, logOut, clearCachedApiaryId, cacheApiaryId, getCachedApiaryId } from "/js/auth.js";
+    import { getApiariesByUser, deleteApiaryDeep, getApiaryByInviteCode, joinApiary } from "/js/db.js";
+    import { db, messaging } from "/js/firebase-config.js";
+    import { doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { buildNav } from "/js/ui.js";
+
+    buildNav("main-nav");
+
+    const user = await requireAuth();
+
+    document.getElementById("user-name").textContent = user.displayName || "(no name)";
+    document.getElementById("user-email").textContent = user.email;
+
+    async function loadApiaries() {
+      const apiaries = await getApiariesByUser(user.uid);
+      const list = document.getElementById("apiaries-list");
+      if (apiaries.length === 0) {
+        list.innerHTML = "<p>No apiaries found.</p>";
+        return;
+      }
+      list.innerHTML = apiaries.map(a => `
+        <div style="margin-bottom:12px">
+          <strong id="name-display-${a.id}">${a.name}</strong>
+          ${a.ownerId === user.uid ? `
+            <input type="text" id="name-input-${a.id}" value="${a.name}" style="margin-left:8px" maxlength="60">
+            <button onclick="renameApiary('${a.id}')">Rename</button>
+            <div style="margin-top:8px">
+              <div><strong>Danger Zone</strong>: this will delete the apiary and all related data.</div>
+              <input
+                type="text"
+                id="delete-apiary-name-${a.id}"
+                placeholder="Type the apiary name to confirm"
+                maxlength="60"
+                style="margin-left:0; margin-top:6px"
+              >
+              <button id="btn-delete-apiary-${a.id}" disabled style="color:red; margin-left:8px">
+                Delete Apiary
+              </button>
+            </div>
+            <span id="apiary-msg-${a.id}"></span>
+          ` : "<em> (joined as partner)</em>"}
+        </div>
+      `).join("");
+
+      // Wire up typed-name danger zone controls after render.
+      apiaries.forEach(a => {
+        if (a.ownerId !== user.uid) return;
+        const input = document.getElementById(`delete-apiary-name-${a.id}`);
+        const btn = document.getElementById(`btn-delete-apiary-${a.id}`);
+        if (!input || !btn) return;
+        btn.disabled = true;
+        btn.onclick = null;
+        input.addEventListener("input", () => {
+          btn.disabled = input.value.trim() !== a.name;
+        });
+        btn.onclick = () => window.removeApiaryDeep(a.id, a.name);
+      });
+    }
+
+    window.renameApiary = async (id) => {
+      const name = document.getElementById(`name-input-${id}`).value.trim();
+      const msg = document.getElementById(`apiary-msg-${id}`);
+      if (!name) { msg.textContent = "Name cannot be empty."; return; }
+      try {
+        await updateDoc(doc(db, "apiaries", id), { name });
+        document.getElementById(`name-display-${id}`).textContent = name;
+        msg.textContent = "Updated!";
+      } catch (e) {
+        msg.textContent = "Error: " + e.message;
+      }
+    };
+
+    window.removeApiaryDeep = async (id, expectedName) => {
+      const input = document.getElementById(`delete-apiary-name-${id}`);
+      const typed = (input?.value || "").trim();
+      const btn = document.getElementById(`btn-delete-apiary-${id}`);
+      const msg = document.getElementById(`apiary-msg-${id}`);
+
+      if (!btn) return;
+      if (typed !== expectedName) {
+        if (msg) msg.textContent = "Type the exact apiary name to enable deletion.";
+        btn.disabled = true;
+        return;
+      }
+
+      try {
+        if (msg) msg.textContent = "Deleting...";
+        btn.disabled = true;
+
+        await deleteApiaryDeep(id);
+
+        // If the deleted apiary was selected, clear cache so the dashboard won't try to load it.
+        if (getCachedApiaryId() === id) clearCachedApiaryId();
+
+        await loadApiaries();
+      } catch (e) {
+        if (msg) msg.textContent = "Error: " + e.message;
+        // Re-enable if still typed correctly.
+        btn.disabled = (typed !== expectedName);
+      }
+    };
+
+    loadApiaries();
+
+    document.getElementById("btn-join-apiary").onclick = async () => {
+      const msg = document.getElementById("join-apiary-msg");
+      const code = document.getElementById("join-invite-code").value.trim().toUpperCase();
+      if (!code) { msg.textContent = "Please enter an invite code."; return; }
+      msg.textContent = "Joining...";
+      try {
+        const apiary = await getApiaryByInviteCode(code);
+        if (!apiary) { msg.textContent = "Invalid invite code."; return; }
+        await joinApiary(apiary.id, user.uid);
+        cacheApiaryId(apiary.id);
+        document.getElementById("join-invite-code").value = "";
+        msg.textContent = `Joined "${apiary.name}".`;
+        await loadApiaries();
+      } catch (e) {
+        msg.textContent = "Error: " + e.message;
+      }
+    };
+
+    document.getElementById("btn-signout").onclick = async () => {
+      await logOut();
+      clearCachedApiaryId();
+      window.location.href = "/login.html";
+    };
+
+    document.getElementById("btn-enable-push").onclick = async () => {
+      const msg = document.getElementById("push-msg");
+      if (!messaging) {
+        msg.textContent = "Push notifications not supported in this browser.";
+        return;
+      }
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          msg.textContent = "Notification permission denied.";
+          return;
+        }
+        msg.textContent = "Push notifications enabled.";
+      } catch (e) {
+        msg.textContent = "Error: " + e.message;
+      }
+    };
+  </script>
+</body>
+</html>
