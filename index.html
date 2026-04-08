@@ -3,106 +3,125 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>HiveVoice — Dashboard</title>
+  <title>HiveVoice</title>
   <link rel="stylesheet" href="/css/app.css">
   <link rel="manifest" href="/manifest.json">
 </head>
 <body>
   <div id="sync-banner"></div>
-  <h1>HiveVoice</h1>
 
-  <!-- First-time: no apiaries -->
-  <div id="first-apiary-form" class="hidden">
-    <h2>Welcome to HiveVoice!</h2>
-    <p>Create your first apiary to get started, or join one via an invite code in Settings.</p>
-    <input type="text" id="first-apiary-name" placeholder="Apiary name (e.g. Garden Apiary)" maxlength="60">
-    <button id="btn-save-first-apiary">Create Apiary</button>
-    <p id="first-apiary-msg"></p>
+  <!-- Top Bar -->
+  <header class="topbar">
+    <span class="topbar-logo">HiveVoice</span>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="topbar-action" id="btn-new-apiary" title="New Apiary" aria-label="Create new apiary">＋</button>
+    </div>
+  </header>
+
+  <div class="page">
+
+    <!-- ── Onboarding: no apiaries yet ── -->
+    <div id="first-apiary-form" class="hidden">
+      <div class="welcome-card" style="margin-top:24px;">
+        <div class="welcome-emoji">🍯</div>
+        <div class="welcome-title">Welcome to HiveVoice!</div>
+        <div class="welcome-sub">Create your first apiary to start tracking your hives, or join one with an invite code in Settings.</div>
+        <div class="welcome-actions">
+          <button class="btn-primary" id="btn-show-create-form">Create My First Apiary</button>
+          <a href="/settings.html" style="display:block;text-align:center;font-size:0.88rem;margin-top:4px;opacity:0.7;">Have an invite code? Go to Settings →</a>
+        </div>
+      </div>
+      <div id="create-first-form" class="inline-form hidden" style="margin-top:0;">
+        <label style="display:block;font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">Apiary Name</label>
+        <input type="text" id="first-apiary-name" placeholder="e.g. Garden Apiary" maxlength="60" style="margin-bottom:10px;">
+        <div style="display:flex;gap:8px;">
+          <button class="btn-primary" id="btn-save-first-apiary" style="flex:1;margin:0;">Create</button>
+          <button id="btn-cancel-create-first" style="margin:0;background:var(--off);border-color:#ccc;color:var(--muted);">Cancel</button>
+        </div>
+        <p id="first-apiary-msg" style="font-size:0.82rem;min-height:18px;margin-top:8px;"></p>
+      </div>
+    </div>
+
+    <!-- ── Main: apiary list ── -->
+    <div id="dashboard" class="hidden">
+      <p style="font-size:0.82rem;color:var(--muted);padding:12px 0 8px;">Your Apiaries</p>
+      <div id="apiaries-list"></div>
+    </div>
+
+    <!-- ── Loading state ── -->
+    <div id="loading-state" style="text-align:center;padding:60px 0;color:var(--muted);font-size:0.9rem;">
+      Loading…
+    </div>
+
+  </div><!-- /.page -->
+
+  <!-- New Apiary Sheet -->
+  <div class="sheet-overlay" id="new-apiary-sheet">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title">New Apiary</div>
+      <div class="field">
+        <label>Apiary Name</label>
+        <input type="text" id="new-apiary-name" placeholder="e.g. Rooftop Apiary" maxlength="60">
+      </div>
+      <button class="btn-primary" id="btn-save-apiary" style="margin:0 0 8px;">Create Apiary</button>
+      <button id="btn-cancel-apiary" style="width:100%;background:var(--off);border-color:#ccc;color:var(--muted);margin:0;">Cancel</button>
+      <p id="new-apiary-msg" style="font-size:0.82rem;min-height:18px;margin-top:8px;"></p>
+    </div>
   </div>
 
-  <!-- Main dashboard (hidden until apiaries loaded) -->
-  <div id="dashboard" class="hidden">
-
-    <!-- Apiary list header -->
-    <div id="apiary-header">
-      <h2 id="apiary-title"></h2>
-      <button id="btn-new-apiary">+ New Apiary</button>
-    </div>
-
-    <!-- Apiary tabs (shown when >1 apiary) -->
-    <div id="apiary-tabs"></div>
-
-    <!-- New apiary inline form -->
-    <div id="new-apiary-form" class="hidden">
-      <input type="text" id="new-apiary-name" placeholder="Apiary name" maxlength="60">
-      <button id="btn-save-apiary">Create</button>
-      <button id="btn-cancel-apiary">Cancel</button>
-      <p id="new-apiary-msg"></p>
-    </div>
-
-    <!-- Invite code notice (shown after creating an apiary) -->
-    <div id="invite-code-notice" class="hidden">
-      <p>Apiary created! Invite code: <strong id="new-invite-code-display"></strong></p>
-      <button id="btn-copy-new-invite">Copy Code</button>
-      <button id="btn-dismiss-invite">OK</button>
-    </div>
-
-    <!-- ── Hives section ── -->
-    <section id="hives-section">
-      <h3>Hives</h3>
-      <button id="btn-add-hive">+ Add Hive</button>
-      <div id="add-hive-form" class="hidden">
-        <input type="text" id="new-hive-name" placeholder="Hive name (e.g. Hive 1)" maxlength="60">
-        <button id="btn-save-hive">Save</button>
-        <button id="btn-cancel-hive">Cancel</button>
-        <p id="add-hive-msg"></p>
+  <!-- Invite Code Toast (after creating apiary) -->
+  <div class="modal-overlay hidden" id="invite-modal">
+    <div class="modal">
+      <div class="modal-title">🎉 Apiary Created!</div>
+      <p class="modal-body">Share this invite code so partners can join:</p>
+      <div class="invite-code-box">
+        <div class="invite-code-text" id="invite-code-display"></div>
       </div>
-      <div id="hives-list"><p>Loading hives...</p></div>
-    </section>
-
-    <!-- ── Partners section ── -->
-    <section id="partners-section">
-      <h3>Partners</h3>
-      <p id="members-count"></p>
-      <div id="members-list"><p>Loading...</p></div>
-
-      <div id="invite-section">
-        <h4>Invite Code</h4>
-        <p>Share this code so others can join this apiary (max 3 members).</p>
-        <p><strong id="invite-code-display"></strong></p>
-        <button id="btn-copy-invite">Copy Code</button>
-        <button id="btn-regen-invite">Generate New Code</button>
-        <p id="invite-msg"></p>
+      <div class="modal-actions" style="flex-direction:column;gap:8px;">
+        <button class="btn-primary" id="btn-copy-invite" style="margin:0;">Copy Code</button>
+        <button id="btn-dismiss-invite" style="margin:0;background:var(--off);border-color:#ccc;color:var(--muted);">Done</button>
       </div>
-    </section>
-
-    <!-- ── Danger Zone ── -->
-    <section id="apiary-danger-zone" class="hidden">
-      <h3>Danger Zone</h3>
-      <p>Permanently delete this apiary and ALL its hives, inspections, and reminders.</p>
-      <p>Type <strong id="apiary-name-confirm-hint"></strong> to confirm:</p>
-      <input type="text" id="delete-apiary-name" placeholder="Type apiary name to confirm" maxlength="60" autocomplete="off">
-      <button id="btn-delete-apiary" disabled>Delete Apiary</button>
-      <p id="apiary-danger-msg"></p>
-    </section>
-
-  </div><!-- /#dashboard -->
+    </div>
+  </div>
 
   <nav id="main-nav"></nav>
 
-  <script type="module">
-    import { onAuthChange, getCachedApiaryId, cacheApiaryId, clearCachedApiaryId, getCurrentUser } from "/js/auth.js";
-    import {
-      getApiariesByUser, createApiary, listenHives, createHive,
-      getApiary, deleteApiaryDeep, regenerateInviteCode, getDisplayName
-    } from "/js/db.js";
-    import { buildNav, updateSyncBanner, formatDate, copyToClipboard } from "/js/ui.js";
-    import { syncPending, pendingCount, openOfflineDB } from "/js/offline.js";
+  <style>
+    .apiary-card {
+      display: flex;
+      align-items: center;
+      background: var(--white);
+      border: 2px solid var(--black);
+      border-radius: var(--radius-lg);
+      padding: 18px 16px;
+      margin-bottom: 12px;
+      text-decoration: none;
+      color: var(--black);
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: box-shadow 0.15s, transform 0.1s;
+      gap: 14px;
+    }
+    .apiary-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+    .apiary-card:active { transform: scale(0.98); }
+    .apiary-card-icon {
+      width: 46px; height: 46px; border-radius: 12px;
+      background: var(--gold-lt); border: 2px solid var(--gold-dk);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; flex-shrink: 0;
+    }
+    .apiary-card-body { flex: 1; min-width: 0; }
+    .apiary-card-name { font-weight: 800; font-size: 1.05rem; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .apiary-card-meta { font-size: 0.78rem; color: var(--muted); }
+    .apiary-card-arrow { font-size: 1.4rem; color: var(--muted); flex-shrink: 0; }
+  </style>
 
-    let unsubHives = null;
-    let apiaryId = null;
-    let apiaries = [];
-    let currentApiary = null;
+  <script type="module">
+    import { onAuthChange, getCachedApiaryId, cacheApiaryId, getCurrentUser } from "/js/auth.js";
+    import { getApiariesByUser, createApiary } from "/js/db.js";
+    import { buildNav, updateSyncBanner, copyToClipboard } from "/js/ui.js";
+    import { syncPending, pendingCount, openOfflineDB } from "/js/offline.js";
 
     buildNav("main-nav");
     openOfflineDB();
@@ -113,287 +132,155 @@
     });
 
     async function init(user) {
-      document.getElementById("hives-list").innerHTML = "<p>Loading...</p>";
+      document.getElementById("loading-state").style.display = "block";
+      document.getElementById("dashboard").classList.add("hidden");
+      document.getElementById("first-apiary-form").classList.add("hidden");
+
+      let apiaries;
       try {
         apiaries = await getApiariesByUser(user.uid);
       } catch (e) {
-        document.getElementById("hives-list").innerHTML = `<p>Failed to load: ${e.message}</p>`;
+        document.getElementById("loading-state").textContent = "Failed to load: " + e.message;
         return;
       }
+
+      document.getElementById("loading-state").style.display = "none";
 
       if (apiaries.length === 0) {
         document.getElementById("first-apiary-form").classList.remove("hidden");
-        document.getElementById("dashboard").classList.add("hidden");
         return;
       }
 
-      document.getElementById("first-apiary-form").classList.add("hidden");
       document.getElementById("dashboard").classList.remove("hidden");
+      renderApiaries(apiaries, user);
 
-      const cached = getCachedApiaryId();
-      const match = apiaries.find(a => a.id === cached);
-      apiaryId = match ? match.id : apiaries[0].id;
-      cacheApiaryId(apiaryId);
-
-      buildApiaryTabs();
-      await loadApiary(user);
-
+      // Sync offline recordings
       if (navigator.onLine) {
         try {
-          const synced = await syncPending(apiaryId);
-          if (synced > 0) {
-            const banner = document.getElementById("sync-banner");
-            banner.textContent = `Synced ${synced} offline recording${synced > 1 ? "s" : ""}.`;
-            banner.classList.add("visible");
-            setTimeout(() => banner.classList.remove("visible"), 4000);
-          }
-        } catch (e) { console.warn("Sync error:", e); }
+          const cached = getCachedApiaryId();
+          const targetId = cached || apiaries[0].id;
+          const synced = await syncPending(targetId);
+          if (synced > 0) updateSyncBanner(0, `Synced ${synced} offline recording${synced > 1 ? "s" : ""}.`);
+        } catch (_) {}
       }
       const pending = await pendingCount();
       updateSyncBanner(pending);
     }
 
-    function buildApiaryTabs() {
-      const tabs = document.getElementById("apiary-tabs");
-      if (apiaries.length <= 1) { tabs.innerHTML = ""; return; }
-      tabs.innerHTML = apiaries.map(a =>
-        `<button class="apiary-tab${a.id === apiaryId ? " active" : ""}" data-id="${a.id}">${a.name}</button>`
-      ).join("");
-      tabs.querySelectorAll(".apiary-tab").forEach(btn => {
-        btn.onclick = async () => {
-          apiaryId = btn.dataset.id;
-          cacheApiaryId(apiaryId);
-          tabs.querySelectorAll(".apiary-tab").forEach(b => b.classList.toggle("active", b.dataset.id === apiaryId));
-          const user = getCurrentUser();
-          await loadApiary(user);
-        };
-      });
+    function renderApiaries(apiaries, user) {
+      const list = document.getElementById("apiaries-list");
+      list.innerHTML = apiaries.map(a => {
+        const hiveWord = ""; // we don't have hive counts here without extra query — keep it clean
+        const isOwner = a.ownerId === user.uid;
+        const memberCount = a.members?.length ?? 1;
+        return `
+          <a class="apiary-card" href="/apiary.html?id=${a.id}">
+            <div class="apiary-card-icon">🍯</div>
+            <div class="apiary-card-body">
+              <div class="apiary-card-name">${a.name}</div>
+              <div class="apiary-card-meta">${isOwner ? "Owner" : "Partner"} · ${memberCount} member${memberCount !== 1 ? "s" : ""}</div>
+            </div>
+            <div class="apiary-card-arrow">›</div>
+          </a>`;
+      }).join("");
     }
 
-    async function loadApiary(user) {
-      // Reset UI
-      document.getElementById("hives-list").innerHTML = "<p>Loading hives...</p>";
-      document.getElementById("members-list").innerHTML = "<p>Loading...</p>";
-      document.getElementById("invite-code-display").textContent = "";
-      document.getElementById("invite-msg").textContent = "";
-      document.getElementById("apiary-danger-msg").textContent = "";
-      document.getElementById("delete-apiary-name").value = "";
-      document.getElementById("btn-delete-apiary").disabled = true;
+    // ── New Apiary Sheet ─────────────────────────────────────────────────────
+    const sheet = document.getElementById("new-apiary-sheet");
 
-      currentApiary = await getApiary(apiaryId);
-      if (!currentApiary) {
-        document.getElementById("hives-list").innerHTML = "<p>Could not load apiary.</p>";
-        return;
-      }
-
-      document.getElementById("apiary-title").textContent = currentApiary.name;
-
-      // Hives
-      if (unsubHives) unsubHives();
-      unsubHives = listenHives(apiaryId, renderHives);
-
-      // Partners / invite
-      await loadMembers(user, currentApiary);
-
-      // Danger zone (owner only)
-      const dangerZone = document.getElementById("apiary-danger-zone");
-      if (currentApiary.ownerId === user.uid) {
-        dangerZone.classList.remove("hidden");
-        document.getElementById("apiary-name-confirm-hint").textContent = currentApiary.name;
-        const input = document.getElementById("delete-apiary-name");
-        const btn = document.getElementById("btn-delete-apiary");
-        // Re-wire input (remove old listeners by replacing element)
-        const fresh = input.cloneNode(true);
-        input.parentNode.replaceChild(fresh, input);
-        fresh.addEventListener("input", () => {
-          btn.disabled = fresh.value.trim() !== currentApiary.name;
-        });
-        btn.onclick = async () => {
-          if (fresh.value.trim() !== currentApiary.name) return;
-          btn.disabled = true;
-          document.getElementById("apiary-danger-msg").textContent = "Deleting...";
-          try {
-            await deleteApiaryDeep(apiaryId);
-            if (getCachedApiaryId() === apiaryId) clearCachedApiaryId();
-            apiaries = await getApiariesByUser(user.uid);
-            if (apiaries.length === 0) {
-              document.getElementById("dashboard").classList.add("hidden");
-              document.getElementById("first-apiary-form").classList.remove("hidden");
-            } else {
-              apiaryId = apiaries[0].id;
-              cacheApiaryId(apiaryId);
-              buildApiaryTabs();
-              await loadApiary(user);
-            }
-          } catch (e) {
-            document.getElementById("apiary-danger-msg").textContent = "Error: " + e.message;
-            btn.disabled = false;
-          }
-        };
-      } else {
-        dangerZone.classList.add("hidden");
-      }
+    document.getElementById("btn-new-apiary").onclick = () => {
+      sheet.classList.add("open");
+      document.getElementById("new-apiary-name").focus();
+    };
+    document.getElementById("btn-cancel-apiary").onclick = closeSheet;
+    sheet.onclick = e => { if (e.target === sheet) closeSheet(); };
+    function closeSheet() {
+      sheet.classList.remove("open");
+      document.getElementById("new-apiary-name").value = "";
+      document.getElementById("new-apiary-msg").textContent = "";
     }
 
-    async function loadMembers(user, apiary) {
-      const isOwner = apiary.ownerId === user.uid;
-      const isFull = apiary.members.length >= 3;
+    document.getElementById("new-apiary-name").addEventListener("keydown", e => {
+      if (e.key === "Enter") document.getElementById("btn-save-apiary").click();
+    });
 
-      // Resolve names
-      const nameEntries = await Promise.all(apiary.members.map(async uid => {
-        const name = await getDisplayName(uid, user.uid);
-        const role = uid === apiary.ownerId ? "Owner" : "Partner";
-        return `<div>${name} — ${role}</div>`;
-      }));
-      document.getElementById("members-list").innerHTML = nameEntries.join("");
-      document.getElementById("members-count").textContent = `${apiary.members.length}/3 members`;
-
-      // Invite code
-      const inviteSection = document.getElementById("invite-section");
-      if (isOwner) {
-        inviteSection.style.display = "";
-        document.getElementById("invite-code-display").textContent = apiary.inviteCode;
-        document.getElementById("invite-msg").textContent = isFull
-          ? "Apiary is full. Remove a member to invite someone new."
-          : "";
-        document.getElementById("btn-copy-invite").onclick = async () => {
-          const ok = await copyToClipboard(apiary.inviteCode);
-          document.getElementById("invite-msg").textContent = ok ? "Code copied!" : "Copy failed — please copy manually: " + apiary.inviteCode;
-        };
-        document.getElementById("btn-regen-invite").onclick = async () => {
-          if (!confirm("Generate a new invite code? The old code will stop working.")) return;
-          try {
-            const newCode = await regenerateInviteCode(apiaryId);
-            apiary.inviteCode = newCode;
-            currentApiary.inviteCode = newCode;
-            document.getElementById("invite-code-display").textContent = newCode;
-            document.getElementById("invite-msg").textContent = "New code active.";
-          } catch (e) {
-            document.getElementById("invite-msg").textContent = "Error: " + e.message;
-          }
-        };
-      } else {
-        inviteSection.style.display = "none";
-      }
-    }
-
-    function renderHives(hives) {
-      const list = document.getElementById("hives-list");
-      if (hives.length === 0) {
-        list.innerHTML = "<p>No hives yet. Add your first hive!</p>";
-        return;
-      }
-      list.innerHTML = hives.map(h => `
-        <div>
-          <strong>${h.name}</strong><br>
-          Last inspection: ${formatDate(h.lastInspection)}<br>
-          <a href="/hive.html?id=${h.id}">Open Recording</a> |
-          <a href="/hive-detail.html?id=${h.id}">Details / Reminders</a>
-        </div>
-        <hr>
-      `).join("");
-    }
-
-    // ── First apiary creation ─────────────────────────────────────────────────
-    document.getElementById("btn-save-first-apiary").onclick = async () => {
-      const name = document.getElementById("first-apiary-name").value.trim();
-      const msg = document.getElementById("first-apiary-msg");
-      if (!name) { msg.textContent = "Please enter a name."; return; }
-      const btn = document.getElementById("btn-save-first-apiary");
-      btn.disabled = true;
-      msg.textContent = "Creating...";
+    document.getElementById("btn-save-apiary").onclick = async () => {
+      const name = document.getElementById("new-apiary-name").value.trim();
+      const msg  = document.getElementById("new-apiary-msg");
+      const btn  = document.getElementById("btn-save-apiary");
+      if (!name) { msg.textContent = "Please enter a name."; msg.style.color = "var(--danger)"; return; }
+      btn.disabled = true; btn.textContent = "Creating…";
       try {
         const user = getCurrentUser();
         const result = await createApiary(user.uid, name);
         cacheApiaryId(result.id);
-        apiaries = await getApiariesByUser(user.uid);
-        apiaryId = result.id;
+        closeSheet();
+        showInviteModal(result.inviteCode);
+        const apiaries = await getApiariesByUser(user.uid);
+        renderApiaries(apiaries, user);
         document.getElementById("first-apiary-form").classList.add("hidden");
         document.getElementById("dashboard").classList.remove("hidden");
-        buildApiaryTabs();
-        await loadApiary(user);
-        showInviteNotice(result.inviteCode);
       } catch (e) {
-        msg.textContent = "Error: " + e.message;
-        btn.disabled = false;
+        msg.textContent = "Error: " + e.message; msg.style.color = "var(--danger)";
+      } finally {
+        btn.disabled = false; btn.textContent = "Create Apiary";
       }
     };
 
-    // ── New apiary form ───────────────────────────────────────────────────────
-    document.getElementById("btn-new-apiary").onclick = () => {
-      document.getElementById("new-apiary-form").classList.remove("hidden");
+    // ── First apiary create form ─────────────────────────────────────────────
+    document.getElementById("btn-show-create-form").onclick = () => {
+      document.getElementById("create-first-form").classList.remove("hidden");
+      document.getElementById("btn-show-create-form").classList.add("hidden");
+      document.getElementById("first-apiary-name").focus();
     };
-    document.getElementById("btn-cancel-apiary").onclick = () => {
-      document.getElementById("new-apiary-form").classList.add("hidden");
-      document.getElementById("new-apiary-msg").textContent = "";
+    document.getElementById("btn-cancel-create-first").onclick = () => {
+      document.getElementById("create-first-form").classList.add("hidden");
+      document.getElementById("btn-show-create-form").classList.remove("hidden");
     };
-    document.getElementById("btn-save-apiary").onclick = async () => {
-      const name = document.getElementById("new-apiary-name").value.trim();
-      const msg = document.getElementById("new-apiary-msg");
-      const btn = document.getElementById("btn-save-apiary");
-      if (!name) { msg.textContent = "Please enter a name."; return; }
-      btn.disabled = true;
-      msg.textContent = "Creating...";
+
+    document.getElementById("first-apiary-name").addEventListener("keydown", e => {
+      if (e.key === "Enter") document.getElementById("btn-save-first-apiary").click();
+    });
+
+    document.getElementById("btn-save-first-apiary").onclick = async () => {
+      const name = document.getElementById("first-apiary-name").value.trim();
+      const msg  = document.getElementById("first-apiary-msg");
+      const btn  = document.getElementById("btn-save-first-apiary");
+      if (!name) { msg.textContent = "Please enter a name."; msg.style.color = "var(--danger)"; return; }
+      btn.disabled = true; btn.textContent = "Creating…";
       try {
         const user = getCurrentUser();
         const result = await createApiary(user.uid, name);
-        apiaries = await getApiariesByUser(user.uid);
-        apiaryId = result.id;
-        cacheApiaryId(apiaryId);
-        document.getElementById("new-apiary-name").value = "";
-        document.getElementById("new-apiary-form").classList.add("hidden");
-        msg.textContent = "";
-        buildApiaryTabs();
-        await loadApiary(user);
-        showInviteNotice(result.inviteCode);
+        cacheApiaryId(result.id);
+        const apiaries = await getApiariesByUser(user.uid);
+        document.getElementById("first-apiary-form").classList.add("hidden");
+        document.getElementById("dashboard").classList.remove("hidden");
+        renderApiaries(apiaries, user);
+        showInviteModal(result.inviteCode);
       } catch (e) {
-        msg.textContent = "Error: " + e.message;
-      } finally {
-        btn.disabled = false;
+        msg.textContent = "Error: " + e.message; msg.style.color = "var(--danger)";
+        btn.disabled = false; btn.textContent = "Create";
       }
     };
 
-    function showInviteNotice(code) {
-      const notice = document.getElementById("invite-code-notice");
-      document.getElementById("new-invite-code-display").textContent = code;
-      notice.classList.remove("hidden");
+    // ── Invite modal ─────────────────────────────────────────────────────────
+    function showInviteModal(code) {
+      document.getElementById("invite-code-display").textContent = code;
+      document.getElementById("invite-modal").classList.remove("hidden");
     }
-    document.getElementById("btn-copy-new-invite").onclick = async () => {
-      const code = document.getElementById("new-invite-code-display").textContent;
+    document.getElementById("btn-copy-invite").onclick = async () => {
+      const code = document.getElementById("invite-code-display").textContent;
       const ok = await copyToClipboard(code);
-      document.getElementById("btn-copy-new-invite").textContent = ok ? "Copied!" : "Copy failed";
+      document.getElementById("btn-copy-invite").textContent = ok ? "✓ Copied!" : "Copy failed";
+      setTimeout(() => { document.getElementById("btn-copy-invite").textContent = "Copy Code"; }, 2000);
     };
     document.getElementById("btn-dismiss-invite").onclick = () => {
-      document.getElementById("invite-code-notice").classList.add("hidden");
+      document.getElementById("invite-modal").classList.add("hidden");
     };
-
-    // ── Add hive form ─────────────────────────────────────────────────────────
-    document.getElementById("btn-add-hive").onclick = () => {
-      document.getElementById("add-hive-form").classList.remove("hidden");
+    document.getElementById("invite-modal").onclick = e => {
+      if (e.target === document.getElementById("invite-modal"))
+        document.getElementById("invite-modal").classList.add("hidden");
     };
-    document.getElementById("btn-cancel-hive").onclick = () => {
-      document.getElementById("add-hive-form").classList.add("hidden");
-      document.getElementById("add-hive-msg").textContent = "";
-    };
-    document.getElementById("btn-save-hive").onclick = async () => {
-      const name = document.getElementById("new-hive-name").value.trim();
-      const msg = document.getElementById("add-hive-msg");
-      const btn = document.getElementById("btn-save-hive");
-      if (!name) { msg.textContent = "Please enter a hive name."; return; }
-      btn.disabled = true;
-      try {
-        await createHive(apiaryId, name);
-        document.getElementById("new-hive-name").value = "";
-        document.getElementById("add-hive-form").classList.add("hidden");
-        msg.textContent = "";
-      } catch (e) {
-        msg.textContent = "Error: " + e.message;
-      } finally {
-        btn.disabled = false;
-      }
-    };
-
-    window.addEventListener("beforeunload", () => { if (unsubHives) unsubHives(); });
   </script>
 </body>
 </html>

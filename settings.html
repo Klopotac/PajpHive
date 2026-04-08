@@ -24,8 +24,8 @@
         <div class="settings-row" style="align-items: center; gap: 14px; padding: 16px;">
           <div class="avatar-circle" id="user-avatar">?</div>
           <div>
-            <div class="settings-row-title" id="user-name" style="font-size: 17px; font-weight: 600;">Loading…</div>
-            <div class="settings-row-subtitle" id="user-email" style="font-size: 13px; color: var(--text-muted); margin-top: 2px;"></div>
+            <div id="user-name" style="font-size: 17px; font-weight: 600; color: var(--text-primary);">Loading…</div>
+            <div id="user-email" style="font-size: 13px; color: var(--text-muted); margin-top: 2px;"></div>
           </div>
         </div>
       </div>
@@ -39,9 +39,9 @@
           <p style="font-size: 14px; color: var(--text-muted); margin: 0 0 12px;">Have an invite code from another beekeeper?</p>
           <div class="input-row">
             <input type="text" id="join-invite-code" class="input-field" placeholder="Enter invite code (e.g. ABC123)" maxlength="10" autocomplete="off" style="text-transform: uppercase; letter-spacing: 2px; font-weight: 600;">
-            <button class="btn btn-primary" id="btn-join-apiary" style="white-space: nowrap;">Join</button>
+            <button class="btn btn-primary" id="btn-join-apiary" style="white-space: nowrap; width: auto;">Join</button>
           </div>
-          <p id="join-apiary-msg" class="field-msg" style="min-height: 20px; margin-top: 8px;"></p>
+          <p id="join-apiary-msg" style="font-size: 13px; min-height: 20px; margin-top: 8px;"></p>
         </div>
       </div>
     </div>
@@ -51,7 +51,7 @@
       <div class="settings-group-label">My Apiaries</div>
       <div class="settings-card" id="apiaries-list">
         <div class="settings-row">
-          <span class="settings-row-title" style="color: var(--text-muted);">Loading…</span>
+          <span style="color: var(--text-muted); font-size: 14px;">Loading…</span>
         </div>
       </div>
     </div>
@@ -102,8 +102,8 @@
   <!-- Confirm Modal -->
   <div class="modal-overlay hidden" id="confirm-modal">
     <div class="modal-card">
-      <h3 id="confirm-title" class="modal-title">Confirm</h3>
-      <p id="confirm-message" class="modal-message"></p>
+      <h3 class="modal-title" id="confirm-title">Sign Out?</h3>
+      <p class="modal-message" id="confirm-message">You'll need to log back in to access your hives.</p>
       <div class="modal-actions">
         <button class="btn btn-secondary" id="confirm-cancel">Cancel</button>
         <button class="btn btn-danger" id="confirm-ok">Sign Out</button>
@@ -114,69 +114,68 @@
   <nav id="main-nav" class="bottom-nav"></nav>
 
   <style>
-    .settings-group {
-      margin: 0 16px 8px;
-    }
+    .settings-group { margin: 0 16px 8px; }
     .settings-group-label {
-      font-size: 12px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      color: var(--text-muted);
+      font-size: 12px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.8px; color: var(--muted);
       padding: 16px 4px 6px;
     }
     .settings-card {
-      background: var(--card-bg);
+      background: var(--white);
       border-radius: var(--radius-lg);
-      border: 1px solid var(--border);
+      border: 2px solid var(--black);
       overflow: hidden;
     }
     .settings-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
+      display: flex; align-items: center; gap: 12px;
       padding: 14px 16px;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid #eee;
     }
     .settings-row:last-child { border-bottom: none; }
     .settings-row-tappable { cursor: pointer; transition: background 0.15s; }
-    .settings-row-tappable:hover { background: var(--hover-bg, rgba(0,0,0,0.04)); }
-    .settings-row-tappable:active { background: rgba(0,0,0,0.08); }
+    .settings-row-tappable:hover { background: rgba(0,0,0,0.03); }
+    .settings-row-tappable:active { background: rgba(0,0,0,0.07); }
     .settings-row-icon { font-size: 20px; flex-shrink: 0; width: 28px; text-align: center; }
     .settings-row-body { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-    .settings-row-title { font-size: 15px; font-weight: 500; color: var(--text-primary); }
-    .settings-row-subtitle { font-size: 13px; color: var(--text-muted); }
-    .settings-row-chevron { color: var(--text-muted); font-size: 20px; font-weight: 300; }
-    .settings-row-danger .settings-row-title { color: var(--danger, #e53e3e); }
+    .settings-row-title { font-size: 15px; font-weight: 500; color: var(--black); }
+    .settings-row-subtitle { font-size: 13px; color: var(--muted); }
+    .settings-row-chevron { color: var(--muted); font-size: 22px; font-weight: 300; }
+    .settings-row-danger .settings-row-title { color: var(--danger); }
     .avatar-circle {
-      width: 48px; height: 48px;
-      border-radius: 50%;
-      background: var(--honey-gradient, linear-gradient(135deg, #f6c90e, #e8951e));
+      width: 48px; height: 48px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--gold), var(--gold-dk));
       display: flex; align-items: center; justify-content: center;
-      font-size: 20px; font-weight: 700; color: white;
-      flex-shrink: 0;
+      font-size: 20px; font-weight: 700; color: var(--black); flex-shrink: 0;
+      border: 2px solid var(--black);
     }
     .input-row { display: flex; gap: 10px; }
     .input-row .input-field { flex: 1; }
-    .field-msg { font-size: 13px; margin: 0; }
-    .apiary-member-row { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+    .apiary-header-row {
+      padding: 12px 16px 8px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid #eee;
+    }
+    .apiary-name-text { font-weight: 700; font-size: 15px; }
+    .apiary-role-badge {
+      font-size: 11px; font-weight: 700; padding: 2px 8px;
+      border-radius: 99px; background: var(--gold-lt);
+      border: 1px solid var(--gold-dk); color: #7a5c00;
+    }
+    .apiary-member-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 16px; border-bottom: 1px solid #eee; font-size: 14px;
+    }
     .apiary-member-row:last-child { border-bottom: none; }
-    .member-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--honey, #f6c90e); flex-shrink: 0; }
-    .apiary-header-row { padding: 12px 16px 8px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
-    .apiary-name-text { font-weight: 700; font-size: 15px; color: var(--text-primary); }
-    .apiary-role-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--honey-light, #fff3cd); color: var(--honey-dark, #a16207); }
+    .member-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold-dk); flex-shrink: 0; }
   </style>
 
   <script type="module">
     import { requireAuth, logOut, clearCachedApiaryId, cacheApiaryId } from "/js/auth.js";
-    import {
-      getApiariesByUser, getApiaryByInviteCode, joinApiary, getDisplayName
-    } from "/js/db.js";
+    import { getApiariesByUser, getApiaryByInviteCode, joinApiary, getDisplayName } from "/js/db.js";
     import { messaging } from "/js/firebase-config.js";
     import { buildNav } from "/js/ui.js";
 
     buildNav("main-nav");
-
     const user = await requireAuth();
 
     // ── Profile ────────────────────────────────────────────────────────────────
@@ -188,54 +187,41 @@
     // ── Apiaries List ──────────────────────────────────────────────────────────
     async function loadApiaries() {
       const list = document.getElementById("apiaries-list");
-
       let apiaries;
       try {
         apiaries = await getApiariesByUser(user.uid);
       } catch (e) {
-        list.innerHTML = `<div class="settings-row"><span class="settings-row-subtitle" style="color:var(--danger)">Failed to load: ${e.message}</span></div>`;
+        list.innerHTML = `<div class="settings-row"><span style="color:var(--danger);font-size:14px;">Failed to load: ${e.message}</span></div>`;
         return;
       }
-
       if (apiaries.length === 0) {
-        list.innerHTML = `<div class="settings-row"><span class="settings-row-subtitle">No apiaries yet. Create one from the Dashboard or join one above.</span></div>`;
+        list.innerHTML = `<div class="settings-row"><span style="color:var(--muted);font-size:14px;">No apiaries yet. Create one from the Dashboard or join one above.</span></div>`;
         return;
       }
-
       const allUids = [...new Set(apiaries.flatMap(a => a.members))];
       const nameMap = {};
-      await Promise.all(allUids.map(async uid => {
-        nameMap[uid] = await getDisplayName(uid, user.uid);
-      }));
-
+      await Promise.all(allUids.map(async uid => { nameMap[uid] = await getDisplayName(uid, user.uid); }));
       list.innerHTML = apiaries.map(a => {
         const isOwner = a.ownerId === user.uid;
         const membersHtml = a.members.map(uid =>
           `<div class="apiary-member-row">
             <div class="member-dot"></div>
-            <span style="font-size:14px; color:var(--text-primary);">${nameMap[uid] || uid}${uid === user.uid ? " (you)" : ""}${uid === a.ownerId ? " · Owner" : ""}</span>
+            <span>${nameMap[uid] || uid}${uid === user.uid ? " (you)" : ""}${uid === a.ownerId ? " · Owner" : ""}</span>
           </div>`
         ).join("");
         return `
           <div class="apiary-header-row">
             <span class="apiary-name-text">🍯 ${a.name}</span>
             <span class="apiary-role-badge">${isOwner ? "Owner" : "Partner"}</span>
-          </div>
-          ${membersHtml}
-        `;
-      }).join('<div style="height:1px; background:var(--border);"></div>');
+          </div>${membersHtml}`;
+      }).join('<div style="height:1px;background:#eee;"></div>');
     }
-
     loadApiaries();
 
     // ── Join Apiary ────────────────────────────────────────────────────────────
     const joinInput = document.getElementById("join-invite-code");
-    joinInput.addEventListener("input", () => {
-      joinInput.value = joinInput.value.toUpperCase();
-    });
-    joinInput.addEventListener("keydown", e => {
-      if (e.key === "Enter") document.getElementById("btn-join-apiary").click();
-    });
+    joinInput.addEventListener("input", () => { joinInput.value = joinInput.value.toUpperCase(); });
+    joinInput.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("btn-join-apiary").click(); });
 
     document.getElementById("btn-join-apiary").onclick = async () => {
       const msg = document.getElementById("join-apiary-msg");
@@ -243,83 +229,45 @@
       const code = joinInput.value.trim().toUpperCase();
       if (!code) { msg.textContent = "Please enter an invite code."; msg.style.color = "var(--danger)"; return; }
       btn.disabled = true;
-      msg.textContent = "Joining…";
-      msg.style.color = "var(--text-muted)";
+      msg.textContent = "Joining…"; msg.style.color = "var(--muted)";
       try {
         const apiary = await getApiaryByInviteCode(code);
-        if (!apiary) {
-          msg.textContent = "Invalid invite code. Double-check and try again.";
-          msg.style.color = "var(--danger)";
-          btn.disabled = false;
-          return;
-        }
+        if (!apiary) { msg.textContent = "Invalid invite code. Double-check and try again."; msg.style.color = "var(--danger)"; btn.disabled = false; return; }
         await joinApiary(apiary.id, user.uid);
         cacheApiaryId(apiary.id);
         joinInput.value = "";
         msg.textContent = `✓ Joined "${apiary.name}"! Go to the Dashboard to see your hives.`;
-        msg.style.color = "var(--success, #38a169)";
+        msg.style.color = "var(--success)";
         await loadApiaries();
       } catch (e) {
-        msg.textContent = "Error: " + e.message;
-        msg.style.color = "var(--danger)";
-      } finally {
-        btn.disabled = false;
-      }
+        msg.textContent = "Error: " + e.message; msg.style.color = "var(--danger)";
+      } finally { btn.disabled = false; }
     };
 
     // ── Push Notifications ─────────────────────────────────────────────────────
-    const pushRow = document.getElementById("row-push-notifications");
     const pushStatus = document.getElementById("push-status");
-
-    // Check current permission state
     if ("Notification" in window) {
-      if (Notification.permission === "granted") pushStatus.textContent = "Enabled";
+      if (Notification.permission === "granted") pushStatus.textContent = "Enabled ✓";
       else if (Notification.permission === "denied") pushStatus.textContent = "Blocked in browser settings";
     } else {
       pushStatus.textContent = "Not supported in this browser";
     }
-
-    pushRow.onclick = async () => {
-      if (!("Notification" in window)) {
-        pushStatus.textContent = "Not supported in this browser";
-        return;
-      }
-      if (Notification.permission === "denied") {
-        pushStatus.textContent = "Blocked — enable in browser settings";
-        return;
-      }
-      if (!messaging) {
-        pushStatus.textContent = "Push messaging not configured";
-        return;
-      }
-      try {
-        const permission = await Notification.requestPermission();
-        if (permission === "granted") {
-          pushStatus.textContent = "Enabled ✓";
-          pushStatus.style.color = "var(--success, #38a169)";
-        } else {
-          pushStatus.textContent = "Permission denied";
-          pushStatus.style.color = "var(--danger)";
-        }
-      } catch (e) {
-        pushStatus.textContent = "Error: " + e.message;
-      }
+    document.getElementById("row-push-notifications").onclick = async () => {
+      if (!("Notification" in window) || !messaging) { pushStatus.textContent = "Not supported"; return; }
+      if (Notification.permission === "denied") { pushStatus.textContent = "Blocked — enable in browser settings"; return; }
+      const permission = await Notification.requestPermission();
+      pushStatus.textContent = permission === "granted" ? "Enabled ✓" : "Permission denied";
+      pushStatus.style.color = permission === "granted" ? "var(--success)" : "var(--danger)";
     };
 
-    // ── Sign Out (with modal confirm) ──────────────────────────────────────────
+    // ── Sign Out modal ─────────────────────────────────────────────────────────
     const modal = document.getElementById("confirm-modal");
-    const confirmOk = document.getElementById("confirm-ok");
-    const confirmCancel = document.getElementById("confirm-cancel");
-
-    document.getElementById("btn-signout").onclick = () => {
-      modal.classList.remove("hidden");
-    };
-    confirmCancel.onclick = () => modal.classList.add("hidden");
+    document.getElementById("btn-signout").onclick = () => modal.classList.remove("hidden");
+    document.getElementById("confirm-cancel").onclick = () => modal.classList.add("hidden");
     modal.onclick = e => { if (e.target === modal) modal.classList.add("hidden"); };
-
-    confirmOk.onclick = async () => {
-      confirmOk.disabled = true;
-      confirmOk.textContent = "Signing out…";
+    document.getElementById("confirm-ok").onclick = async () => {
+      const btn = document.getElementById("confirm-ok");
+      btn.disabled = true; btn.textContent = "Signing out…";
       await logOut();
       clearCachedApiaryId();
       window.location.href = "/login.html";

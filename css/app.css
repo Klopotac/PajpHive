@@ -1332,3 +1332,91 @@ hr { border: none; border-top: 1px solid #eee; margin: 8px 0; }
   color: var(--muted);
   margin-bottom: 20px;
 }
+
+
+/* ── Semantic variable aliases ───────────────────────── */
+:root {
+  --card-bg:        var(--white);
+  --border:         #e8e8e8;
+  --text-primary:   var(--black);
+  --text-muted:     var(--muted);
+  --hover-bg:       rgba(0,0,0,0.03);
+  --honey-gradient: linear-gradient(135deg, var(--gold), var(--gold-dk));
+  --honey-light:    var(--gold-lt);
+  --honey-dark:     #a16207;
+  --honey:          var(--gold);
+}
+
+/* ── .btn class aliases ──────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px; padding: 11px 20px; margin: 0;
+  background: var(--gold); color: var(--black);
+  border: 2px solid var(--black); border-radius: var(--radius);
+  font-family: var(--font); font-size: 0.92rem; font-weight: 700;
+  cursor: pointer; transition: background 0.12s, transform 0.08s;
+  white-space: nowrap; text-decoration: none;
+}
+.btn:hover  { background: var(--gold-dk); }
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn.btn-primary  { background: var(--gold); border-color: var(--black); color: var(--black); }
+.btn.btn-secondary { background: var(--off); border-color: #ccc; color: var(--black); }
+.btn.btn-secondary:hover { border-color: var(--black); background: var(--white); box-shadow: none; }
+.btn.btn-danger   { background: var(--white); border-color: var(--danger); color: var(--danger); }
+.btn.btn-danger:hover { background: var(--danger); color: var(--white); }
+
+/* ── .input-field ────────────────────────────────────── */
+.input-field {
+  display: block; width: 100%; padding: 12px 14px; margin: 0;
+  border: 2px solid #ccc; border-radius: var(--radius);
+  font-family: var(--font); font-size: 0.95rem;
+  background: var(--white); outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input-field:focus { border-color: var(--gold-dk); box-shadow: 0 0 0 3px var(--gold-lt); }
+
+/* ── .top-bar (mirrors .topbar) ──────────────────────── */
+.top-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 16px 12px; position: sticky; top: 0;
+  background: var(--white); border-bottom: 2px solid var(--black); z-index: 50;
+}
+.top-bar-title { font-size: 1.05rem; font-weight: 800; letter-spacing: -0.02em; }
+.top-bar-actions { display: flex; gap: 8px; align-items: center; }
+
+/* ── .page-content ───────────────────────────────────── */
+.page-content { padding: 8px 0; position: relative; z-index: 2; }
+
+/* ── .modal-card / .modal-message ───────────────────── */
+.modal-card {
+  background: var(--white); border: 2px solid var(--black);
+  border-radius: var(--radius-lg); padding: 28px 24px 20px;
+  width: 100%; max-width: 360px;
+  animation: pop-in 0.2s ease; box-shadow: var(--shadow-md);
+}
+.modal-message { font-size: 0.92rem; color: var(--muted); margin-bottom: 20px; }
+
+/* ── .modal-overlay: show by default, hide with .hidden  */
+.modal-overlay {
+  display: flex; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4); z-index: 300;
+  align-items: center; justify-content: center; padding: 20px;
+}
+.modal-overlay.hidden { display: none !important; }
+
+/* ── Nav icon SVG sizing ─────────────────────────────── */
+.nav-item {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-decoration: none; color: var(--muted); gap: 3px;
+  transition: color 0.1s, background 0.1s;
+  border-right: 1px solid #eee; padding: 0;
+  background: none; border-radius: 0;
+}
+.nav-item:last-child { border-right: none; }
+.nav-item.active,
+.nav-item[aria-current="page"] { color: var(--black); background: var(--gold-lt); }
+.nav-icon { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; }
+.nav-icon svg { width: 22px; height: 22px; stroke: currentColor; }
+.nav-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.02em; line-height: 1; }
