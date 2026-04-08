@@ -194,7 +194,14 @@
         let audioUrl = "";
         const effApiaryId = apiaryId || hive.apiaryId;
         if (audioBlob) {
-          audioUrl = await uploadAudio(audioBlob, localId, effApiaryId);
+          try {
+            audioUrl = await uploadAudio(audioBlob, localId, effApiaryId);
+          } catch (uploadErr) {
+            // Audio upload failed (e.g. CORS / Storage not configured).
+            // Log it but don't block saving the inspection note.
+            console.warn("Audio upload failed, saving without audio:", uploadErr.message);
+            saveMsg.textContent = "Note: audio upload failed, saving text only...";
+          }
         }
 
         // PHASE 2: AI PROCESSING
