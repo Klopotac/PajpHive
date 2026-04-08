@@ -6,41 +6,248 @@
   <title>HiveVoice — Recording</title>
   <link rel="stylesheet" href="/css/app.css">
   <link rel="manifest" href="/manifest.json">
+  <style>
+    /* ── Recording page extras ── */
+    #screen-recording { max-width: 480px; margin: 0 auto; padding: 16px 16px 100px; }
+
+    /* Next-inspection reminder banner */
+    .next-inspection-banner {
+      background: #FEF3C7; border: 2px solid #F59E0B;
+      border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px;
+    }
+    .next-inspection-banner h3 {
+      font-size: 0.78rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 0.04em; color: #92400E; margin: 0 0 8px;
+    }
+    .next-inspection-item {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.88rem; padding: 4px 0;
+    }
+    .next-inspection-item input[type=checkbox] { flex-shrink: 0; }
+
+    /* Active warnings */
+    .warning-block {
+      border-radius: var(--radius); padding: 10px 12px;
+      margin-bottom: 8px; display: flex; align-items: flex-start; gap: 10px;
+      font-size: 0.88rem; font-weight: 600;
+    }
+    .warning-block.severity-warning { background: #FEF3C7; border: 2px solid #F59E0B; color: #92400E; }
+    .warning-block.severity-danger  { background: #FEE2E2; border: 2px solid #EF4444; color: #991B1B; }
+    .warning-block-text { flex: 1; }
+    .warning-dismiss {
+      background: none; border: none; cursor: pointer; font-size: 1rem;
+      padding: 0; line-height: 1; color: inherit; opacity: 0.6;
+      flex-shrink: 0; margin: 0;
+    }
+    .warning-dismiss:hover { opacity: 1; }
+
+    /* Server status */
+    .server-status {
+      font-size: 0.75rem; padding: 6px 10px; border-radius: 20px;
+      display: inline-flex; align-items: center; gap: 5px;
+      margin-bottom: 12px; border: 1px solid;
+    }
+    .server-status.ok     { background: #D1FAE5; border-color: #10B981; color: #065F46; }
+    .server-status.warn   { background: #FEF3C7; border-color: #F59E0B; color: #92400E; }
+    .server-status.error  { background: #FEE2E2; border-color: #EF4444; color: #991B1B; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+    /* Recording controls */
+    #recording-controls { text-align: center; margin: 20px 0; }
+    #recording-indicator {
+      font-size: 3rem; margin-bottom: 8px;
+      animation: pulse 1.2s ease-in-out infinite;
+      display: none;
+    }
+    #recording-indicator.active { display: block; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    #timer-display { font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; margin-bottom: 12px; }
+    #status-msg { font-size: 0.88rem; color: var(--muted); min-height: 20px; margin-bottom: 12px; }
+
+    #btn-stop {
+      background: var(--danger, #EF4444); color: white; border-color: var(--danger, #EF4444);
+      font-size: 1rem; padding: 14px 32px; border-radius: 100px;
+      font-weight: 700; width: 100%; max-width: 280px;
+    }
+    #btn-stop:hover { opacity: 0.88; }
+
+    /* Processing spinner */
+    #processing-state { text-align: center; padding: 24px 0; }
+    .spinner {
+      width: 40px; height: 40px; border: 4px solid #eee;
+      border-top-color: #F59E0B; border-radius: 50%;
+      animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .processing-step { font-size: 0.88rem; color: var(--muted); }
+
+    /* Result preview card */
+    #result-preview { margin-top: 8px; }
+    .result-section {
+      background: var(--white, #fff); border: 2px solid var(--black, #111);
+      border-radius: var(--radius-lg, 12px); padding: 14px 16px; margin-bottom: 12px;
+      box-shadow: 3px 3px 0 #111;
+    }
+    .result-section-title {
+      font-size: 0.72rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--muted, #666); margin-bottom: 8px;
+    }
+    .result-notes { font-size: 0.92rem; line-height: 1.55; white-space: pre-wrap; }
+    .result-tag {
+      display: inline-block; font-size: 0.75rem; font-weight: 700;
+      padding: 2px 8px; border-radius: 20px; margin-right: 4px; margin-bottom: 4px;
+    }
+    .result-tag.warning { background: #FEF3C7; color: #92400E; }
+    .result-tag.danger  { background: #FEE2E2; color: #991B1B; }
+    .result-item { font-size: 0.88rem; padding: 5px 0; border-bottom: 1px solid #f0f0f0; }
+    .result-item:last-child { border-bottom: none; }
+    .result-item-label { font-size: 0.72rem; color: var(--muted, #888); margin-right: 4px; }
+
+    .transcript-toggle {
+      font-size: 0.78rem; color: var(--muted); cursor: pointer;
+      text-decoration: underline; text-underline-offset: 2px;
+      background: none; border: none; padding: 0; margin-top: 6px;
+    }
+    .transcript-text {
+      font-size: 0.8rem; color: var(--muted); line-height: 1.5;
+      font-style: italic; margin-top: 8px; padding: 8px;
+      background: var(--off, #f8f8f8); border-radius: var(--radius, 8px);
+      white-space: pre-wrap;
+    }
+
+    .btn-confirm-save {
+      width: 100%; padding: 14px; font-size: 1rem; font-weight: 700;
+      border-radius: 100px; margin: 8px 0 0;
+    }
+    .btn-discard {
+      width: 100%; background: none; border: none; color: var(--muted);
+      font-size: 0.85rem; padding: 10px; cursor: pointer; margin: 0;
+    }
+    .btn-discard:hover { color: var(--danger); }
+
+    /* Manual fallback */
+    #manual-fallback { margin-top: 12px; }
+    #manual-fallback textarea { width: 100%; min-height: 100px; margin-bottom: 8px; }
+
+    /* Success state */
+    #screen-success .success-card {
+      background: #D1FAE5; border: 2px solid #10B981; border-radius: var(--radius-lg);
+      padding: 20px; margin-bottom: 16px; text-align: center;
+    }
+    .success-summary { font-size: 0.85rem; margin-top: 12px; color: #065F46; }
+    .success-summary li { margin: 3px 0; }
+  </style>
 </head>
 <body>
   <div id="sync-banner"></div>
 
-  <div id="screen-loading">
+  <!-- Loading -->
+  <div id="screen-loading" style="text-align:center;padding:60px 20px;">
     <p>Loading hive...</p>
   </div>
 
+  <!-- Recording page -->
   <div id="screen-recording" class="hidden">
-    <h1 id="hive-name-display">Hive</h1>
-    <div id="recording-indicator">
-      <p>&#x1F399; Listening...</p>
-      <p id="timer-display">00:00</p>
+    <header style="margin-bottom:16px;">
+      <a href="/index.html" style="font-size:0.85rem;color:var(--muted);text-decoration:none;">‹ Dashboard</a>
+      <h1 id="hive-name-display" style="margin:4px 0 0;font-size:1.4rem;">Hive</h1>
+    </header>
+
+    <!-- Server health indicator -->
+    <div id="server-status-indicator"></div>
+
+    <!-- Next-inspection todos (shown before recording starts) -->
+    <div id="next-inspection-section" class="hidden">
+      <div class="next-inspection-banner">
+        <h3>🔔 From last inspection — check these today:</h3>
+        <div id="next-inspection-list"></div>
+      </div>
     </div>
-    <p id="status-msg"></p>
-    <button id="btn-stop" class="hidden">Stop Recording</button>
-    <div id="post-record" class="hidden">
-      <p>Recording saved.</p>
-      <textarea id="manual-notes" placeholder="Add manual notes (optional)" rows="4"></textarea>
-      <button id="btn-save">Done &amp; Sync</button>
-      <p id="save-msg"></p>
+
+    <!-- Active warnings for this hive -->
+    <div id="active-warnings-section" class="hidden">
+      <div style="font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted);margin-bottom:6px;">Active Warnings</div>
+      <div id="active-warnings-list"></div>
     </div>
-    <br>
-    <a href="/index.html">Back to Dashboard</a>
+
+    <!-- Recording controls -->
+    <div id="recording-controls">
+      <div id="recording-indicator">🎙</div>
+      <div id="timer-display">00:00</div>
+      <div id="status-msg">Preparing...</div>
+      <button id="btn-stop" class="hidden">⏹ Stop Recording</button>
+    </div>
+
+    <!-- Processing state (shown while AI works) -->
+    <div id="processing-state" class="hidden">
+      <div class="spinner"></div>
+      <div class="processing-step" id="processing-step-text">Transcribing audio...</div>
+    </div>
+
+    <!-- AI Result preview -->
+    <div id="result-preview" class="hidden">
+      <div style="font-weight:800;font-size:1rem;margin-bottom:12px;">📋 Inspection Summary</div>
+
+      <!-- Notes -->
+      <div class="result-section" id="result-notes-section">
+        <div class="result-section-title">📝 Notes</div>
+        <div class="result-notes" id="result-notes-text"></div>
+        <button class="transcript-toggle" id="btn-show-transcript">Show raw transcript</button>
+        <div class="transcript-text hidden" id="transcript-text"></div>
+      </div>
+
+      <!-- Warnings -->
+      <div class="result-section hidden" id="result-warnings-section">
+        <div class="result-section-title">⚠️ Warnings</div>
+        <div id="result-warnings-list"></div>
+      </div>
+
+      <!-- Reminders -->
+      <div class="result-section hidden" id="result-reminders-section">
+        <div class="result-section-title">📅 Reminders Added to Calendar</div>
+        <div id="result-reminders-list"></div>
+      </div>
+
+      <!-- Todos -->
+      <div class="result-section hidden" id="result-todos-section">
+        <div class="result-section-title">✅ To-Do Items</div>
+        <div id="result-todos-list"></div>
+      </div>
+
+      <button class="btn-primary btn-confirm-save" id="btn-confirm-save">Save Inspection</button>
+      <button class="btn-discard" id="btn-discard">Discard &amp; Record Again</button>
+      <p id="save-msg" style="text-align:center;font-size:0.85rem;min-height:18px;"></p>
+    </div>
+
+    <!-- Manual fallback (shown when AI fails) -->
+    <div id="manual-fallback" class="hidden">
+      <div class="result-section">
+        <div class="result-section-title">✏️ Manual Notes</div>
+        <p style="font-size:0.82rem;color:var(--muted);margin-bottom:8px;">AI processing failed. You can save a manual note instead.</p>
+        <textarea id="manual-notes" placeholder="Type your inspection notes here..." rows="5"></textarea>
+        <button class="btn-primary" id="btn-save-manual" style="width:100%;border-radius:100px;">Save Manual Note</button>
+        <p id="manual-save-msg" style="font-size:0.85rem;min-height:18px;margin-top:6px;"></p>
+      </div>
+      <button class="btn-discard" id="btn-retry-record">↩ Try recording again</button>
+    </div>
   </div>
 
-  <div id="screen-success" class="hidden">
-    <h2>Saved!</h2>
-    <p id="success-hive-name"></p>
-    <p>Your recording has been saved.</p>
-    <a href="/index.html">Dashboard</a> |
-    <a id="link-details" href="#">View Hive Details</a>
+  <!-- Success screen -->
+  <div id="screen-success" class="hidden" style="max-width:480px;margin:0 auto;padding:24px 16px;">
+    <div class="success-card">
+      <div style="font-size:2rem;">🐝</div>
+      <div style="font-weight:800;font-size:1.1rem;margin-top:8px;">Inspection Saved!</div>
+      <div id="success-hive-name" style="font-size:0.9rem;color:#065F46;margin-top:4px;"></div>
+      <ul class="success-summary" id="success-summary"></ul>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <a href="/index.html" class="btn-primary" style="text-align:center;border-radius:100px;display:block;text-decoration:none;">Back to Dashboard</a>
+      <a id="link-details" href="#" style="text-align:center;display:block;font-size:0.88rem;color:var(--muted);">View Hive Details</a>
+    </div>
   </div>
 
-  <div id="screen-error" class="hidden">
+  <!-- Error screen -->
+  <div id="screen-error" class="hidden" style="max-width:480px;margin:0 auto;padding:24px 16px;text-align:center;">
     <h2>Something went wrong</h2>
     <p id="error-msg-detail"></p>
     <a href="/index.html">Back to Dashboard</a>
@@ -48,16 +255,20 @@
 
   <script type="module">
     import { onAuthChange, getCachedApiaryId } from "/js/auth.js";
-    import { getHive, getApiary, saveInspection } from "/js/db.js";
+    import {
+      getHive, getApiary, saveInspection,
+      saveInspectionWithBuckets,
+      listenActiveWarnings, dismissWarning,
+      getNextInspectionTodos, toggleTodo
+    } from "/js/db.js";
     import { uploadAudio } from "/js/storage.js";
     import {
       requestMicPermission, startRecording, stopRecording,
       releaseMic, formatTime, acquireWakeLock, releaseWakeLock
     } from "/js/recording.js";
-    import {
-      saveAudioOffline, saveMetaOffline, pendingCount, openOfflineDB
-    } from "/js/offline.js";
+    import { saveAudioOffline, saveMetaOffline, pendingCount, openOfflineDB } from "/js/offline.js";
     import { generateLocalId, updateSyncBanner } from "/js/ui.js";
+    import { processInspection, checkAIServerHealth } from "/js/ai.js";
 
     const params = new URLSearchParams(window.location.search);
     const hiveId = params.get("id");
@@ -67,6 +278,9 @@
     let hive = null;
     let currentUser = null;
     let apiaryId = null;
+    let aiResult = null;
+    let unsubWarnings = null;
+    let nextInspectionTodos = [];
 
     openOfflineDB();
 
@@ -82,13 +296,10 @@
       show("screen-error");
     }
 
-    if (!hiveId) {
-      showError("No hive ID found in URL. Please tap the NFC chip again.");
-    }
+    if (!hiveId) { showError("No hive ID found in URL. Please tap the NFC chip again."); }
 
     onAuthChange(async (user) => {
       if (!user) {
-        // Store the hive URL and redirect to login so user can come back
         const returnPath = window.location.pathname + window.location.search;
         window.location.href = `/login.html?return=${encodeURIComponent(returnPath)}`;
         return;
@@ -98,47 +309,110 @@
       await initRecordingPage();
     });
 
+    // ── Server health check ────────────────────────────────────────────────────
+    async function showServerStatus() {
+      const el = document.getElementById("server-status-indicator");
+      el.innerHTML = `<span class="server-status warn"><span class="status-dot"></span>Checking AI server...</span>`;
+      const health = await checkAIServerHealth();
+      if (health.reachable && health.whisper && health.ollama) {
+        el.innerHTML = `<span class="server-status ok"><span class="status-dot"></span>AI server ready</span>`;
+      } else if (health.reachable) {
+        const issues = [];
+        if (!health.whisper) issues.push("Whisper loading");
+        if (!health.ollama) issues.push("Ollama loading");
+        el.innerHTML = `<span class="server-status warn"><span class="status-dot"></span>${issues.join(", ")} — may be slow</span>`;
+      } else {
+        el.innerHTML = `<span class="server-status error"><span class="status-dot"></span>AI server offline — manual notes only</span>`;
+      }
+    }
+
+    // ── Init ───────────────────────────────────────────────────────────────────
     async function initRecordingPage() {
       if (!hiveId) return;
 
-      // Load hive data
       hive = await getHive(hiveId);
       if (!hive) { showError("Hive not found. Check the NFC chip URL."); return; }
 
-      // Hardening: require membership in the hive's parent apiary.
       const apiary = await getApiary(hive.apiaryId);
       if (!apiary || !apiary.members.includes(currentUser.uid)) {
         showError("You do not have access to this hive.");
         return;
       }
 
-      // Ensure saves are associated with the correct apiary for this hive.
       apiaryId = hive.apiaryId;
-
       document.getElementById("hive-name-display").textContent = hive.name;
       document.title = `HiveVoice — ${hive.name}`;
       show("screen-recording");
 
-      // Check pending sync count
       const pending = await pendingCount();
       updateSyncBanner(pending);
+
+      // Load server status (non-blocking)
+      showServerStatus();
+
+      // Load next-inspection todos
+      nextInspectionTodos = await getNextInspectionTodos(hiveId);
+      renderNextInspectionTodos();
+
+      // Listen to active warnings
+      unsubWarnings = listenActiveWarnings(hiveId, renderActiveWarnings);
 
       // Request mic permission
       const hasPermission = await requestMicPermission();
       if (!hasPermission) {
-        document.getElementById("status-msg").textContent =
-          "Microphone access denied. Please allow microphone in browser settings.";
+        document.getElementById("status-msg").textContent = "Microphone access denied. Please allow microphone in browser settings.";
         return;
       }
 
-      // Acquire wake lock
       wakeLock = await acquireWakeLock();
-
-      // Auto-start recording after 1.5 seconds
       document.getElementById("status-msg").textContent = "Starting in 1.5 seconds...";
-      setTimeout(() => beginRecording(), 1500);
+      setTimeout(beginRecording, 1500);
     }
 
+    // ── Next-inspection todos ─────────────────────────────────────────────────
+    function renderNextInspectionTodos() {
+      if (nextInspectionTodos.length === 0) return;
+      const section = document.getElementById("next-inspection-section");
+      const list = document.getElementById("next-inspection-list");
+      list.innerHTML = nextInspectionTodos.map(t => `
+        <div class="next-inspection-item">
+          <input type="checkbox" id="ni-${t.id}" data-todo-id="${t.id}">
+          <label for="ni-${t.id}">${t.text}</label>
+        </div>
+      `).join("");
+      list.querySelectorAll("input[type=checkbox]").forEach(cb => {
+        cb.addEventListener("change", () => {
+          if (cb.checked) toggleTodo(cb.dataset.todoId, true).catch(console.warn);
+        });
+      });
+      section.classList.remove("hidden");
+    }
+
+    // ── Active warnings ────────────────────────────────────────────────────────
+    function renderActiveWarnings(warnings) {
+      const section = document.getElementById("active-warnings-section");
+      const list = document.getElementById("active-warnings-list");
+      if (warnings.length === 0) {
+        section.classList.add("hidden");
+        list.innerHTML = "";
+        return;
+      }
+      list.innerHTML = warnings.map(w => `
+        <div class="warning-block severity-${w.severity}" data-warning-id="${w.id}">
+          <span class="warning-block-text">${w.severity === "danger" ? "🚨" : "⚠️"} ${w.text}</span>
+          <button class="warning-dismiss" title="Dismiss">✕</button>
+        </div>
+      `).join("");
+      list.querySelectorAll(".warning-dismiss").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const id = btn.closest("[data-warning-id]").dataset.warningId;
+          dismissWarning(id).catch(console.warn);
+        });
+      });
+      section.classList.remove("hidden");
+    }
+
+    // ── Recording ──────────────────────────────────────────────────────────────
     function beginRecording() {
       document.getElementById("status-msg").textContent = "";
       document.getElementById("recording-indicator").classList.add("active");
@@ -152,89 +426,215 @@
     document.getElementById("btn-stop").onclick = async () => {
       document.getElementById("btn-stop").disabled = true;
       document.getElementById("recording-indicator").classList.remove("active");
-      document.getElementById("status-msg").textContent = "Processing...";
+      document.getElementById("status-msg").textContent = "";
 
       audioBlob = await stopRecording();
       releaseMic();
       releaseWakeLock(wakeLock);
 
-      document.getElementById("status-msg").textContent = "Recording complete.";
-      document.getElementById("post-record").classList.remove("hidden");
-    };
-
-    document.getElementById("btn-save").onclick = async () => {
-      const saveMsg = document.getElementById("save-msg");
-      const notes = document.getElementById("manual-notes").value.trim();
-      document.getElementById("btn-save").disabled = true;
-      saveMsg.textContent = "Saving...";
-
-      const localId = generateLocalId();
-
-      if (!navigator.onLine) {
-        // Save offline
-        try {
-          if (audioBlob) await saveAudioOffline(localId, audioBlob);
-          await saveMetaOffline({
-            localId,
-            hiveId: hive.id,
-            apiaryId: apiaryId || hive.apiaryId,
-            recordedBy: currentUser.uid,
-            notes
-          });
-          showSuccess();
-        } catch (e) {
-          saveMsg.textContent = "Offline save failed: " + e.message;
-          document.getElementById("btn-save").disabled = false;
-        }
+      if (!audioBlob) {
+        document.getElementById("status-msg").textContent = "No audio captured.";
+        document.getElementById("btn-stop").disabled = false;
         return;
       }
 
-      // Save online
+      // Start AI processing
+      await runAIProcessing();
+    };
+
+    // ── AI Processing ──────────────────────────────────────────────────────────
+    async function runAIProcessing() {
+      // Hide controls, show spinner
+      document.getElementById("recording-controls").classList.add("hidden");
+      const procState = document.getElementById("processing-state");
+      const stepText = document.getElementById("processing-step-text");
+      procState.classList.remove("hidden");
+
+      stepText.textContent = "Transcribing audio... (this takes ~10 seconds)";
+
+      // Step timing hint
+      const stepTimeout = setTimeout(() => {
+        stepText.textContent = "Analysing with AI... (usually 15–25 seconds)";
+      }, 12000);
+
       try {
-        let audioUrl = "";
-        const effApiaryId = apiaryId || hive.apiaryId;
-        if (audioBlob) {
-          try {
-            audioUrl = await uploadAudio(audioBlob, localId, effApiaryId);
-          } catch (uploadErr) {
-            // Audio upload failed (e.g. CORS / Storage not configured).
-            // Log it but don't block saving the inspection note.
-            console.warn("Audio upload failed, saving without audio:", uploadErr.message);
-            saveMsg.textContent = "Note: audio upload failed, saving text only...";
-          }
-        }
+        aiResult = await processInspection(audioBlob, hiveId, apiaryId);
+        clearTimeout(stepTimeout);
+        procState.classList.add("hidden");
+        showResultPreview(aiResult);
+      } catch (err) {
+        clearTimeout(stepTimeout);
+        procState.classList.add("hidden");
+        console.error("AI processing failed:", err);
+        showManualFallback(err.message);
+      }
+    }
 
-        // PHASE 2: AI PROCESSING
-        // async function processWithAI(audioBlob, inspectionId) {
-        //   1. Send audioBlob to OpenAI Whisper API → get transcript
-        //   2. Send transcript to GPT-4 with a prompt to extract:
-        //      - Clean written notes
-        //      - Any reminders/tasks mentioned (with dates if specified)
-        //   3. Save transcript, notes, reminders back to Firestore
-        //   4. Trigger push notification to all partners: "New inspection note for [Hive Name]"
-        // }
+    // ── Result preview ─────────────────────────────────────────────────────────
+    function showResultPreview(result) {
+      // Notes
+      document.getElementById("result-notes-text").textContent =
+        result.notes || "(No notes extracted)";
+      document.getElementById("transcript-text").textContent =
+        result.transcript || "";
 
-        await saveInspection({
-          hiveId: hive.id,
-          apiaryId: effApiaryId,
-          recordedBy: currentUser.uid,
-          audioUrl,
-          transcript: "",
-          notes: notes,
-          reminders: []
-        });
-        showSuccess();
+      // Warnings
+      if (result.warnings && result.warnings.length > 0) {
+        document.getElementById("result-warnings-section").classList.remove("hidden");
+        document.getElementById("result-warnings-list").innerHTML = result.warnings.map(w => `
+          <div class="warning-block severity-${w.severity}" style="margin-bottom:6px;">
+            <span>${w.severity === "danger" ? "🚨" : "⚠️"} ${w.text}</span>
+          </div>
+        `).join("");
+      }
+
+      // Reminders
+      if (result.reminders && result.reminders.length > 0) {
+        document.getElementById("result-reminders-section").classList.remove("hidden");
+        document.getElementById("result-reminders-list").innerHTML = result.reminders.map(r => `
+          <div class="result-item">
+            <span class="result-item-label">📅 ${r.due_date}</span> ${r.text}
+          </div>
+        `).join("");
+      }
+
+      // Todos
+      if (result.todos && result.todos.length > 0) {
+        document.getElementById("result-todos-section").classList.remove("hidden");
+        document.getElementById("result-todos-list").innerHTML = result.todos.map(t => `
+          <div class="result-item">
+            ${t.next_inspection ? '<span class="result-tag warning">Next inspection</span>' : ""}
+            ${t.text}
+          </div>
+        `).join("");
+      }
+
+      document.getElementById("result-preview").classList.remove("hidden");
+    }
+
+    // Toggle raw transcript
+    document.getElementById("btn-show-transcript").onclick = () => {
+      const transcriptEl = document.getElementById("transcript-text");
+      const btn = document.getElementById("btn-show-transcript");
+      const hidden = transcriptEl.classList.toggle("hidden");
+      btn.textContent = hidden ? "Show raw transcript" : "Hide transcript";
+    };
+
+    // ── Save confirmed result ──────────────────────────────────────────────────
+    document.getElementById("btn-confirm-save").onclick = async () => {
+      const btn = document.getElementById("btn-confirm-save");
+      const msg = document.getElementById("save-msg");
+      btn.disabled = true;
+      btn.textContent = "Saving...";
+      msg.textContent = "";
+
+      try {
+        await saveInspectionWithBuckets(aiResult, hiveId, apiaryId, currentUser.uid);
+        showSuccess(aiResult);
       } catch (e) {
-        saveMsg.textContent = "Save failed: " + e.message;
-        document.getElementById("btn-save").disabled = false;
+        msg.textContent = "Save failed: " + e.message;
+        btn.disabled = false;
+        btn.textContent = "Save Inspection";
       }
     };
 
-    function showSuccess() {
+    // Discard and record again
+    document.getElementById("btn-discard").onclick = () => {
+      aiResult = null;
+      audioBlob = null;
+      document.getElementById("result-preview").classList.add("hidden");
+      document.getElementById("result-warnings-section").classList.add("hidden");
+      document.getElementById("result-reminders-section").classList.add("hidden");
+      document.getElementById("result-todos-section").classList.add("hidden");
+      document.getElementById("timer-display").textContent = "00:00";
+      document.getElementById("status-msg").textContent = "";
+      document.getElementById("btn-stop").disabled = false;
+      document.getElementById("btn-stop").classList.add("hidden");
+      document.getElementById("recording-controls").classList.remove("hidden");
+      // Re-request mic and start again
+      initRecordingControls();
+    };
+
+    async function initRecordingControls() {
+      const hasPermission = await requestMicPermission();
+      if (!hasPermission) {
+        document.getElementById("status-msg").textContent = "Microphone access denied.";
+        return;
+      }
+      wakeLock = await acquireWakeLock();
+      document.getElementById("status-msg").textContent = "Starting in 1.5 seconds...";
+      setTimeout(beginRecording, 1500);
+    }
+
+    // ── Manual fallback ────────────────────────────────────────────────────────
+    function showManualFallback(errorMsg) {
+      document.getElementById("recording-controls").classList.add("hidden");
+      const fb = document.getElementById("manual-fallback");
+      fb.classList.remove("hidden");
+      // Show error in server status
+      const el = document.getElementById("server-status-indicator");
+      el.innerHTML = `<span class="server-status error"><span class="status-dot"></span>AI failed: ${errorMsg}</span>`;
+    }
+
+    document.getElementById("btn-save-manual").onclick = async () => {
+      const btn = document.getElementById("btn-save-manual");
+      const msg = document.getElementById("manual-save-msg");
+      const notes = document.getElementById("manual-notes").value.trim();
+      btn.disabled = true;
+      msg.textContent = "Saving...";
+
+      try {
+        let audioUrl = "";
+        const localId = generateLocalId();
+        if (audioBlob) {
+          try { audioUrl = await uploadAudio(audioBlob, localId, apiaryId); } catch {}
+        }
+        await saveInspection({
+          hiveId: hive.id, apiaryId,
+          recordedBy: currentUser.uid,
+          audioUrl, transcript: "", notes, reminders: []
+        });
+        // Minimal success
+        document.getElementById("screen-recording").classList.add("hidden");
+        showSuccess({ notes, warnings: [], reminders: [], todos: [] });
+      } catch (e) {
+        msg.textContent = "Save failed: " + e.message;
+        btn.disabled = false;
+      }
+    };
+
+    document.getElementById("btn-retry-record").onclick = () => {
+      audioBlob = null;
+      document.getElementById("manual-fallback").classList.add("hidden");
+      document.getElementById("recording-controls").classList.remove("hidden");
+      document.getElementById("timer-display").textContent = "00:00";
+      document.getElementById("btn-stop").classList.add("hidden");
+      document.getElementById("btn-stop").disabled = false;
+      initRecordingControls();
+    };
+
+    // ── Success ────────────────────────────────────────────────────────────────
+    function showSuccess(result) {
+      if (unsubWarnings) { unsubWarnings(); unsubWarnings = null; }
       document.getElementById("success-hive-name").textContent = hive.name;
       document.getElementById("link-details").href = `/hive-detail.html?id=${hive.id}`;
+
+      const summary = [];
+      if (result.notes) summary.push("📝 Inspection notes saved");
+      if (result.warnings && result.warnings.length > 0)
+        summary.push(`⚠️ ${result.warnings.length} warning${result.warnings.length > 1 ? "s" : ""} flagged`);
+      if (result.reminders && result.reminders.length > 0)
+        summary.push(`📅 ${result.reminders.length} reminder${result.reminders.length > 1 ? "s" : ""} added to calendar`);
+      if (result.todos && result.todos.length > 0)
+        summary.push(`✅ ${result.todos.length} to-do item${result.todos.length > 1 ? "s" : ""} added`);
+
+      document.getElementById("success-summary").innerHTML = summary.map(s => `<li>${s}</li>`).join("");
       show("screen-success");
     }
+
+    window.addEventListener("beforeunload", () => {
+      if (unsubWarnings) unsubWarnings();
+    });
   </script>
 </body>
 </html>

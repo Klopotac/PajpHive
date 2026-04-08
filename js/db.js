@@ -320,3 +320,194 @@ export async function getRemindersOnce(apiaryId) {
   });
   return docs;
 }
+
+
+// ── AI Inspection (4-bucket save) ─────────────────────────────────────────────
+
+/**
+ * Save a full AI inspection result (all 4 buckets) to Firestore.
+ * Creates: 1 inspection doc, N warning docs, N reminder docs, N todo docs.
+ * Also updates the hive's lastInspection timestamp.
+ *
+ * @param {object} aiResult - the 4-bucket JSON from the AI
+ * @param {string} hiveId
+ * @param {string} apiaryId
+ * @param {string} userId
+ * @returns {Promise<string>} inspection document ID
+ */
+export async function saveInspectionWithBuckets(aiResult, hiveId, apiaryId, userId) {
+  const batch = writeBatch(db);
+  const now = serverTimestamp();
+
+  // 1. Inspection document
+  const inspectionRef = doc(collection(db, "inspections"));
+  batch.set(inspectionRef, {
+    hiveId,
+    apiaryId,
+    recordedBy: userId,
+    transcript: aiResult.transcript || "",
+    notes: aiResult.notes || "",
+    warningCount:  (aiResult.warnings  || []).filter(w => w.severity === "warning").length,
+    dangerCount:   (aiResult.warnings  || []).filter(w => w.severity === "danger").length,
+    reminderCount: (aiResult.reminders || []).length,
+    todoCount:     (aiResult.todos     || []).length,
+    warningsSnapshot:  aiResult.warnings  || [],
+    remindersSnapshot: aiResult.reminders || [],
+    todosSnapshot:     aiResult.todos     || [],
+    createdAt: now,
+    syncedAt:  now
+  });
+
+  // 2. Active warnings (per-hive, dismissable)
+  for (const w of (aiResult.warnings || [])) {
+    const wRef = doc(collection(db, "hive_warnings"));
+    batch.set(wRef, {
+      hiveId,
+      apiaryId,
+      inspectionId: inspectionRef.id,
+      text:      w.text,
+      severity:  w.severity,   // "warning" | "danger"
+      dismissed: false,
+      createdAt: now
+    });
+  }
+
+  // 3. Timed reminders → calendar
+  for (const r of (aiResult.reminders || [])) {
+    const dueDate = new Date(r.due_date + "T00:00:00");
+    const rRef = doc(collection(db, "reminders"));
+    batch.set(rRef, {
+      hiveId,
+      apiaryId,
+      inspectionId: inspectionRef.id,
+      text:    r.text,
+      dueDate: Timestamp.fromDate(dueDate),
+      done:    false,
+      createdAt: now
+    });
+  }
+
+  // 4. Todos → hive checklist
+  for (const t of (aiResult.todos || [])) {
+    const tRef = doc(collection(db, "hive_todos"));
+    batch.set(tRef, {
+      hiveId,
+      apiaryId,
+      inspectionId: inspectionRef.id,
+      text:                 t.text,
+      done:                 false,
+      showAtNextInspection: t.next_inspection || false,
+      scheduledDate:        null,
+      createdAt:            now
+    });
+  }
+
+  // 5. Update hive lastInspection
+  batch.update(doc(db, "hives", hiveId), { lastInspection: now });
+
+  await batch.commit();
+  return inspectionRef.id;
+}
+
+
+// ── Active Warnings ───────────────────────────────────────────────────────────
+
+/** Listen to active (non-dismissed) warnings for a hive. Returns unsubscribe fn. */
+export function listenActiveWarnings(hiveId, callback) {
+  const q = query(
+    collection(db, "hive_warnings"),
+    where("hiveId", "==", hiveId),
+    where("dismissed", "==", false)
+  );
+  return onSnapshot(q, snap => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  }, err => {
+    console.warn("listenActiveWarnings error:", err.message);
+    callback([]);
+  });
+}
+
+/** Dismiss a warning (keeps it in history but removes from active list). */
+export async function dismissWarning(warningId) {
+  await updateDoc(doc(db, "hive_warnings", warningId), { dismissed: true });
+}
+
+/**
+ * Get warning counts for multiple hives at once.
+ * Returns { [hiveId]: { warnings: N, dangers: N } }
+ */
+export async function getWarningCountsForHives(hiveIds) {
+  if (!hiveIds || hiveIds.length === 0) return {};
+  const counts = {};
+  hiveIds.forEach(id => { counts[id] = { warnings: 0, dangers: 0 }; });
+
+  const chunks = [];
+  for (let i = 0; i < hiveIds.length; i += 10) chunks.push(hiveIds.slice(i, i + 10));
+
+  for (const chunk of chunks) {
+    try {
+      const snap = await getDocs(query(
+        collection(db, "hive_warnings"),
+        where("hiveId", "in", chunk),
+        where("dismissed", "==", false)
+      ));
+      snap.docs.forEach(d => {
+        const { hiveId, severity } = d.data();
+        if (counts[hiveId]) {
+          if (severity === "danger") counts[hiveId].dangers++;
+          else counts[hiveId].warnings++;
+        }
+      });
+    } catch (e) {
+      console.warn("getWarningCountsForHives chunk error:", e.message);
+    }
+  }
+  return counts;
+}
+
+
+// ── Hive Todos ────────────────────────────────────────────────────────────────
+
+/** Listen to undone todos for a hive. Returns unsubscribe fn. */
+export function listenHiveTodos(hiveId, callback) {
+  const q = query(
+    collection(db, "hive_todos"),
+    where("hiveId", "==", hiveId),
+    where("done", "==", false)
+  );
+  return onSnapshot(q, snap => {
+    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // Sort: next-inspection items first, then by createdAt desc
+    docs.sort((a, b) => {
+      if (a.showAtNextInspection && !b.showAtNextInspection) return -1;
+      if (!a.showAtNextInspection && b.showAtNextInspection) return 1;
+      const ta = a.createdAt?.toDate?.() ?? new Date(0);
+      const tb = b.createdAt?.toDate?.() ?? new Date(0);
+      return tb - ta;
+    });
+    callback(docs);
+  }, err => {
+    console.warn("listenHiveTodos error:", err.message);
+    callback([]);
+  });
+}
+
+export async function toggleTodo(todoId, done) {
+  await updateDoc(doc(db, "hive_todos", todoId), { done });
+}
+
+/** Get todos flagged for next inspection — shown at top of recording page. */
+export async function getNextInspectionTodos(hiveId) {
+  try {
+    const snap = await getDocs(query(
+      collection(db, "hive_todos"),
+      where("hiveId", "==", hiveId),
+      where("done", "==", false),
+      where("showAtNextInspection", "==", true)
+    ));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.warn("getNextInspectionTodos error:", e.message);
+    return [];
+  }
+}

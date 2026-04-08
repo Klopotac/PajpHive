@@ -111,13 +111,22 @@
       border-radius: var(--radius-lg); padding: 16px; margin-bottom: 12px;
       box-shadow: var(--shadow);
     }
-    .hive-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .hive-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
     .hive-card-name { font-weight: 800; font-size: 1.05rem; }
     .hive-card-badge {
       font-size: 0.72rem; font-weight: 700; padding: 3px 8px;
       border-radius: 20px; background: var(--gold-lt); border: 1px solid var(--gold-dk);
       color: #7a5c00; white-space: nowrap; flex-shrink: 0;
     }
+    /* Warning badges on hive cards */
+    .hive-card-alerts { display: flex; gap: 6px; flex-wrap: wrap; }
+    .alert-badge {
+      font-size: 0.7rem; font-weight: 700; padding: 3px 8px;
+      border-radius: 20px; white-space: nowrap; flex-shrink: 0;
+    }
+    .alert-badge-danger  { background: #FEE2E2; border: 1px solid #EF4444; color: #991B1B; }
+    .alert-badge-warning { background: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; }
+
     .hive-card-meta { font-size: 0.8rem; color: var(--muted); }
     .hive-card-actions { display: flex; gap: 8px; }
     .btn-inspect {
@@ -155,7 +164,8 @@
     import { requireAuth, getCachedApiaryId, cacheApiaryId, clearCachedApiaryId } from "/js/auth.js";
     import {
       getApiary, listenHives, createHive, renameApiary,
-      deleteApiaryDeep, regenerateInviteCode, getDisplayName
+      deleteApiaryDeep, regenerateInviteCode, getDisplayName,
+      getWarningCountsForHives
     } from "/js/db.js";
     import { buildNav, formatDate, copyToClipboard, showConfirm } from "/js/ui.js";
 
@@ -182,7 +192,7 @@
     unsubHives = listenHives(apiaryId, renderHives);
     window.addEventListener("beforeunload", () => { if (unsubHives) unsubHives(); });
 
-    function renderHives(hives) {
+    async function renderHives(hives) {
       const list = document.getElementById("hives-list");
       if (hives.length === 0) {
         list.innerHTML = `
@@ -193,14 +203,35 @@
           </div>`;
         return;
       }
+
+      // Fetch warning counts for all hives in one batch call
+      const hiveIds = hives.map(h => h.id);
+      let warnCounts = {};
+      try { warnCounts = await getWarningCountsForHives(hiveIds); } catch {}
+
       list.innerHTML = hives.map(h => {
         const lastDate = h.lastInspection ? formatDate(h.lastInspection) : null;
+        const counts = warnCounts[h.id] || { warnings: 0, dangers: 0 };
+
+        // Build alert badges (only shown when non-zero)
+        let alertBadgesHtml = "";
+        if (counts.dangers > 0) {
+          alertBadgesHtml += `<span class="alert-badge alert-badge-danger">🚨 ${counts.dangers} danger</span>`;
+        }
+        if (counts.warnings > 0) {
+          alertBadgesHtml += `<span class="alert-badge alert-badge-warning">⚠️ ${counts.warnings} warning</span>`;
+        }
+
         return `
           <div class="hive-card">
             <div class="hive-card-top">
               <div class="hive-card-name">${h.name}</div>
-              ${lastDate ? `<div class="hive-card-badge">📋 ${lastDate}</div>` : `<div class="hive-card-badge" style="background:var(--off);border-color:#ccc;color:var(--muted);">No inspections</div>`}
+              ${lastDate
+                ? `<div class="hive-card-badge">📋 ${lastDate}</div>`
+                : `<div class="hive-card-badge" style="background:var(--off);border-color:#ccc;color:var(--muted);">No inspections</div>`
+              }
             </div>
+            ${alertBadgesHtml ? `<div class="hive-card-alerts">${alertBadgesHtml}</div>` : ""}
             <div class="hive-card-meta">Last inspection: ${lastDate ?? "Never"}</div>
             <div class="hive-card-actions">
               <button class="btn-inspect" onclick="location.href='/hive.html?id=${h.id}'">🎙 Inspect</button>

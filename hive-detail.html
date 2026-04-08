@@ -5,11 +5,85 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HiveVoice — Hive Details</title>
   <link rel="stylesheet" href="/css/app.css">
+  <style>
+    /* Warnings */
+    .warning-block {
+      border-radius: var(--radius); padding: 10px 14px;
+      margin-bottom: 8px; display: flex; align-items: flex-start; gap: 10px;
+      font-size: 0.88rem; font-weight: 600;
+    }
+    .warning-block.severity-warning { background: #FEF3C7; border: 2px solid #F59E0B; color: #92400E; }
+    .warning-block.severity-danger  { background: #FEE2E2; border: 2px solid #EF4444; color: #991B1B; }
+    .warning-block-text { flex: 1; }
+    .warning-dismiss {
+      background: none; border: none; cursor: pointer; font-size: 1rem;
+      padding: 0; line-height: 1; color: inherit; opacity: 0.6; flex-shrink: 0; margin: 0;
+    }
+    .warning-dismiss:hover { opacity: 1; }
+
+    /* Todos */
+    .todo-item {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 0.9rem;
+    }
+    .todo-item:last-child { border-bottom: none; }
+    .todo-item input[type=checkbox] { flex-shrink: 0; margin-top: 2px; }
+    .todo-item-text { flex: 1; }
+    .todo-tag-next {
+      font-size: 0.68rem; font-weight: 700; padding: 1px 6px; border-radius: 10px;
+      background: #FEF3C7; color: #92400E; white-space: nowrap;
+    }
+
+    /* Inspection history with AI buckets */
+    .inspection-card {
+      background: var(--white); border: 2px solid var(--black);
+      border-radius: var(--radius-lg); padding: 14px 16px; margin-bottom: 12px;
+      box-shadow: 3px 3px 0 #111;
+    }
+    .inspection-card-header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 8px;
+    }
+    .inspection-card-date { font-weight: 700; font-size: 0.9rem; }
+    .inspection-card-by   { font-size: 0.75rem; color: var(--muted); }
+    .inspection-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+    .badge {
+      font-size: 0.68rem; font-weight: 700; padding: 2px 7px; border-radius: 20px;
+    }
+    .badge-warning  { background: #FEF3C7; color: #92400E; }
+    .badge-danger   { background: #FEE2E2; color: #991B1B; }
+    .badge-reminder { background: #DBEAFE; color: #1E40AF; }
+    .badge-todo     { background: #D1FAE5; color: #065F46; }
+    .inspection-notes { font-size: 0.88rem; line-height: 1.5; color: #333; }
+    .inspection-expand-btn {
+      font-size: 0.75rem; color: var(--muted); cursor: pointer;
+      text-decoration: underline; text-underline-offset: 2px;
+      background: none; border: none; padding: 6px 0 0; margin: 0; display: block;
+    }
+    .inspection-snapshot { margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee; }
+    .snapshot-section-title {
+      font-size: 0.7rem; font-weight: 800; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--muted); margin-bottom: 4px;
+    }
+    .snapshot-item { font-size: 0.82rem; color: #444; padding: 2px 0; }
+  </style>
 </head>
 <body>
   <div id="sync-banner"></div>
   <a href="/index.html">&larr; Back to Dashboard</a>
   <h1 id="hive-title">Hive Details</h1>
+
+  <!-- Active Todos -->
+  <section id="todos-section">
+    <h2>✅ To-Do List</h2>
+    <div id="todos-list"><p style="color:var(--muted);font-size:0.88rem;">No to-dos yet.</p></div>
+  </section>
+
+  <!-- Active Warnings -->
+  <section id="warnings-section">
+    <h2>⚠️ Active Warnings</h2>
+    <div id="warnings-list"><p style="color:var(--muted);font-size:0.88rem;">No active warnings.</p></div>
+  </section>
 
   <section>
     <h2>Edit Hive</h2>
@@ -43,13 +117,7 @@
     <h2>Danger Zone</h2>
     <p>Permanently delete this hive and all its inspections and reminders. This cannot be undone.</p>
     <p>Type <strong id="hive-name-confirm-hint"></strong> to confirm:</p>
-    <input
-      type="text"
-      id="delete-hive-name"
-      placeholder="Type the hive name to confirm"
-      maxlength="60"
-      autocomplete="off"
-    >
+    <input type="text" id="delete-hive-name" placeholder="Type the hive name to confirm" maxlength="60" autocomplete="off">
     <button id="btn-delete-hive" disabled>Delete Hive</button>
     <p id="hive-danger-msg"></p>
   </section>
@@ -66,7 +134,9 @@
     import {
       getApiary, getHive, updateHive, listenInspections,
       listenReminders, addReminder, deleteReminder,
-      toggleReminder, deleteHiveDeep, getDisplayName, getRemindersOnce
+      toggleReminder, deleteHiveDeep, getDisplayName, getRemindersOnce,
+      listenActiveWarnings, dismissWarning,
+      listenHiveTodos, toggleTodo
     } from "/js/db.js";
     import { buildNav, copyToClipboard, formatDateTime, formatDate, updateSyncBanner } from "/js/ui.js";
     import { pendingCount, openOfflineDB } from "/js/offline.js";
@@ -78,6 +148,8 @@
     const hiveId = params.get("id");
     let unsubInspections = null;
     let unsubReminders = null;
+    let unsubWarnings = null;
+    let unsubTodos = null;
     let currentHive = null;
 
     const user = await requireAuth();
@@ -88,26 +160,18 @@
     }
 
     let hive, apiary;
-    try {
-      hive = await getHive(hiveId);
-    } catch (e) {
-      document.body.innerHTML = `<p>Error loading hive: ${e.message}</p><a href='/index.html'>Go back</a>`;
-      throw e;
+    try { hive = await getHive(hiveId); } catch (e) {
+      document.body.innerHTML = `<p>Error loading hive: ${e.message}</p><a href='/index.html'>Go back</a>`; throw e;
     }
-
     if (!hive) {
       document.body.innerHTML = "<p>Hive not found.</p><a href='/index.html'>Go back</a>";
       throw new Error("Hive not found");
     }
     currentHive = hive;
 
-    try {
-      apiary = await getApiary(hive.apiaryId);
-    } catch (e) {
-      document.body.innerHTML = `<p>Error loading apiary: ${e.message}</p><a href='/index.html'>Go back</a>`;
-      throw e;
+    try { apiary = await getApiary(hive.apiaryId); } catch (e) {
+      document.body.innerHTML = `<p>Error loading apiary: ${e.message}</p><a href='/index.html'>Go back</a>`; throw e;
     }
-
     if (!apiary || !apiary.members.includes(user.uid)) {
       document.body.innerHTML = "<p>You do not have access to this hive.</p><a href='/index.html'>Back</a>";
       throw new Error("Access denied");
@@ -122,6 +186,51 @@
 
     const nfcUrl = hive.nfcUrl || `${window.location.origin}/hive.html?id=${hiveId}`;
     document.getElementById("nfc-url").textContent = nfcUrl;
+
+    // ── Active Warnings ───────────────────────────────────────────────────────
+    unsubWarnings = listenActiveWarnings(hiveId, (warnings) => {
+      const list = document.getElementById("warnings-list");
+      if (warnings.length === 0) {
+        list.innerHTML = `<p style="color:var(--muted);font-size:0.88rem;">No active warnings. 🌿</p>`;
+        return;
+      }
+      list.innerHTML = warnings.map(w => `
+        <div class="warning-block severity-${w.severity}" data-warning-id="${w.id}">
+          <span class="warning-block-text">${w.severity === "danger" ? "🚨" : "⚠️"} ${w.text}</span>
+          <button class="warning-dismiss" title="Dismiss">✕</button>
+        </div>
+      `).join("");
+      list.querySelectorAll(".warning-dismiss").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const id = btn.closest("[data-warning-id]").dataset.warningId;
+          dismissWarning(id).catch(e => alert("Could not dismiss: " + e.message));
+        });
+      });
+    });
+
+    // ── Todos ─────────────────────────────────────────────────────────────────
+    unsubTodos = listenHiveTodos(hiveId, (todos) => {
+      const list = document.getElementById("todos-list");
+      if (todos.length === 0) {
+        list.innerHTML = `<p style="color:var(--muted);font-size:0.88rem;">No to-dos yet.</p>`;
+        return;
+      }
+      list.innerHTML = todos.map(t => `
+        <div class="todo-item" data-todo-id="${t.id}">
+          <input type="checkbox" id="todo-${t.id}">
+          <span class="todo-item-text">
+            ${t.showAtNextInspection ? '<span class="todo-tag-next">Next inspection</span> ' : ""}
+            ${t.text}
+          </span>
+        </div>
+      `).join("");
+      list.querySelectorAll("input[type=checkbox]").forEach(cb => {
+        const todoId = cb.closest("[data-todo-id]").dataset.todoId;
+        cb.addEventListener("change", () => {
+          if (cb.checked) toggleTodo(todoId, true).catch(console.warn);
+        });
+      });
+    });
 
     // ── Rename ────────────────────────────────────────────────────────────────
     document.getElementById("btn-rename").onclick = async () => {
@@ -138,22 +247,14 @@
         document.getElementById("delete-hive-name").value = "";
         document.getElementById("btn-delete-hive").disabled = true;
         msg.textContent = "Name updated.";
-      } catch (e) {
-        msg.textContent = "Error: " + e.message;
-      } finally {
-        btn.disabled = false;
-      }
+      } catch (e) { msg.textContent = "Error: " + e.message; }
+      finally { btn.disabled = false; }
     };
 
     // ── Copy NFC URL ──────────────────────────────────────────────────────────
     document.getElementById("btn-copy-nfc").onclick = async () => {
       const ok = await copyToClipboard(nfcUrl);
-      const msg = document.getElementById("copy-msg");
-      if (ok) {
-        msg.textContent = "Copied!";
-      } else {
-        msg.textContent = "Auto-copy failed. Copy manually: " + nfcUrl;
-      }
+      document.getElementById("copy-msg").textContent = ok ? "Copied!" : "Auto-copy failed. Copy manually: " + nfcUrl;
     };
 
     // ── Add Reminder ──────────────────────────────────────────────────────────
@@ -164,31 +265,22 @@
       if (!text) { msg.textContent = "Please enter reminder text."; return; }
       if (!date) { msg.textContent = "Please select a date."; return; }
       const btn = document.getElementById("btn-add-reminder");
-      btn.disabled = true;
-      msg.textContent = "Saving...";
+      btn.disabled = true; msg.textContent = "Saving...";
       try {
         await addReminder(hive.apiaryId, hiveId, text, date);
         document.getElementById("reminder-text").value = "";
         document.getElementById("reminder-date").value = "";
         msg.textContent = "Reminder added!";
-        // Manually refresh the list in case the real-time listener is waiting on index
         const fresh = await getRemindersOnce(hive.apiaryId);
         renderReminders(fresh.filter(r => r.hiveId === hiveId));
-      } catch (e) {
-        msg.textContent = "Error saving reminder: " + e.message;
-        console.error("addReminder failed:", e);
-      } finally {
-        btn.disabled = false;
-      }
+      } catch (e) { msg.textContent = "Error saving reminder: " + e.message; }
+      finally { btn.disabled = false; }
     };
 
     // ── Reminders list ────────────────────────────────────────────────────────
     function renderReminders(hiveReminders) {
       const list = document.getElementById("reminders-list");
-      if (hiveReminders.length === 0) {
-        list.innerHTML = "<p>No reminders yet.</p>";
-        return;
-      }
+      if (hiveReminders.length === 0) { list.innerHTML = "<p>No reminders yet.</p>"; return; }
       list.innerHTML = hiveReminders.map(r => `
         <div>
           <label>
@@ -198,7 +290,6 @@
           <button data-delete-reminder="${r.id}">Delete</button>
         </div>
       `).join("");
-
       list.querySelectorAll("input[type=checkbox]").forEach(cb => {
         cb.onchange = () => toggleReminder(cb.dataset.id, cb.checked);
       });
@@ -207,12 +298,9 @@
           if (!confirm("Delete this reminder?")) return;
           try {
             await deleteReminder(btn.dataset.deleteReminder);
-            // Refresh manually in case real-time listener is pending
             const fresh = await getRemindersOnce(hive.apiaryId);
             renderReminders(fresh.filter(r => r.hiveId === hiveId));
-          } catch (e) {
-            alert("Error deleting reminder: " + e.message);
-          }
+          } catch (e) { alert("Error deleting reminder: " + e.message); }
         };
       });
     }
@@ -227,60 +315,79 @@
       const input = document.getElementById("delete-hive-name");
       const btn = document.getElementById("btn-delete-hive");
       const msg = document.getElementById("hive-danger-msg");
-
       dangerZone.classList.remove("hidden");
       document.getElementById("hive-name-confirm-hint").textContent = hive.name;
-
-      input.addEventListener("input", () => {
-        btn.disabled = input.value.trim() !== currentHive.name;
-      });
-
+      input.addEventListener("input", () => { btn.disabled = input.value.trim() !== currentHive.name; });
       btn.onclick = async () => {
         if (input.value.trim() !== currentHive.name) return;
-        btn.disabled = true;
-        msg.textContent = "Deleting...";
-        try {
-          await deleteHiveDeep(hiveId);
-          window.location.href = "/index.html";
-        } catch (e) {
-          msg.textContent = "Error: " + e.message;
-          btn.disabled = (input.value.trim() !== currentHive.name);
-        }
+        btn.disabled = true; msg.textContent = "Deleting...";
+        try { await deleteHiveDeep(hiveId); window.location.href = "/index.html"; }
+        catch (e) { msg.textContent = "Error: " + e.message; btn.disabled = (input.value.trim() !== currentHive.name); }
       };
     }
 
     // ── Inspection History ────────────────────────────────────────────────────
     unsubInspections = listenInspections(hiveId, async (inspections) => {
       const list = document.getElementById("inspections-list");
-      if (inspections.length === 0) {
-        list.innerHTML = "<p>No inspections yet.</p>";
-        return;
-      }
+      if (inspections.length === 0) { list.innerHTML = "<p>No inspections yet.</p>"; return; }
 
       const uids = [...new Set(inspections.map(i => i.recordedBy).filter(Boolean))];
       const nameMap = {};
-      await Promise.all(uids.map(async uid => {
-        nameMap[uid] = await getDisplayName(uid, user.uid);
-      }));
+      await Promise.all(uids.map(async uid => { nameMap[uid] = await getDisplayName(uid, user.uid); }));
 
-      list.innerHTML = inspections.map(ins => `
-        <div>
-          <strong>${formatDateTime(ins.createdAt)}</strong>
-          by ${nameMap[ins.recordedBy] || "Unknown"}<br>
-          ${ins.notes ? `<p>Notes: ${ins.notes}</p>` : ""}
-          ${ins.transcript ? `<p>Transcript: ${ins.transcript}</p>` : ""}
-          ${ins.audioUrl
-            ? `<audio controls src="${ins.audioUrl}"></audio>`
-            : "<em>Audio pending sync</em>"
-          }
-        </div>
-        <hr>
-      `).join("");
+      list.innerHTML = inspections.map(ins => {
+        const badges = [];
+        if (ins.dangerCount  > 0) badges.push(`<span class="badge badge-danger">🚨 ${ins.dangerCount} danger</span>`);
+        if (ins.warningCount > 0) badges.push(`<span class="badge badge-warning">⚠️ ${ins.warningCount} warning</span>`);
+        if (ins.reminderCount > 0) badges.push(`<span class="badge badge-reminder">📅 ${ins.reminderCount} reminder</span>`);
+        if (ins.todoCount    > 0) badges.push(`<span class="badge badge-todo">✅ ${ins.todoCount} todo</span>`);
+
+        const hasSnapshot = (ins.warningsSnapshot?.length || ins.todosSnapshot?.length || ins.remindersSnapshot?.length);
+
+        return `
+          <div class="inspection-card" data-id="${ins.id}">
+            <div class="inspection-card-header">
+              <div>
+                <div class="inspection-card-date">${formatDateTime(ins.createdAt)}</div>
+                <div class="inspection-card-by">by ${nameMap[ins.recordedBy] || "Unknown"}</div>
+              </div>
+            </div>
+            ${badges.length > 0 ? `<div class="inspection-badges">${badges.join("")}</div>` : ""}
+            <div class="inspection-notes">${ins.notes || ins.transcript || "<em>No notes</em>"}</div>
+            ${ins.audioUrl ? `<audio controls src="${ins.audioUrl}" style="width:100%;margin-top:8px;"></audio>` : ""}
+            ${hasSnapshot ? `<button class="inspection-expand-btn" data-id="${ins.id}">Show details ▾</button>
+              <div class="inspection-snapshot hidden" id="snapshot-${ins.id}">
+                ${(ins.warningsSnapshot||[]).length > 0 ? `
+                  <div class="snapshot-section-title">Warnings at this inspection</div>
+                  ${ins.warningsSnapshot.map(w => `<div class="snapshot-item">${w.severity === "danger" ? "🚨" : "⚠️"} ${w.text}</div>`).join("")}
+                ` : ""}
+                ${(ins.remindersSnapshot||[]).length > 0 ? `
+                  <div class="snapshot-section-title" style="margin-top:8px;">Reminders added</div>
+                  ${ins.remindersSnapshot.map(r => `<div class="snapshot-item">📅 ${r.due_date} — ${r.text}</div>`).join("")}
+                ` : ""}
+                ${(ins.todosSnapshot||[]).length > 0 ? `
+                  <div class="snapshot-section-title" style="margin-top:8px;">Todos added</div>
+                  ${ins.todosSnapshot.map(t => `<div class="snapshot-item">✅ ${t.text}${t.next_inspection ? " <em>(next inspection)</em>" : ""}</div>`).join("")}
+                ` : ""}
+              </div>` : ""}
+          </div>`;
+      }).join("");
+
+      // Expand/collapse buttons
+      list.querySelectorAll(".inspection-expand-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const snap = document.getElementById(`snapshot-${btn.dataset.id}`);
+          const hidden = snap.classList.toggle("hidden");
+          btn.textContent = hidden ? "Show details ▾" : "Hide details ▴";
+        });
+      });
     });
 
     window.addEventListener("beforeunload", () => {
       if (unsubInspections) unsubInspections();
       if (unsubReminders) unsubReminders();
+      if (unsubWarnings) unsubWarnings();
+      if (unsubTodos) unsubTodos();
     });
   </script>
 </body>
