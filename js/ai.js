@@ -4,7 +4,7 @@
 const AI_API_KEY = "hivevoice-secret-key-change-me";
 
 // LAN address (direct, fast when on home wifi)
-const AI_SERVER_LAN = "http://192.168.0.50:7700";
+const AI_SERVER_LAN = "https://hiveapi.pajp.duckdns.org";
 
 // External address via DuckDNS / Caddy (used when away from home)
 // Replace with your actual DuckDNS hostname:
