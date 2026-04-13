@@ -1,13 +1,58 @@
 // ai.js — Communication with the local HiveVoice AI server
 
-// On LAN (home wifi): use direct IP for speed
-// On cellular (away from home): use external URL via Caddy
-// Switch between the two by changing this constant:
-const AI_SERVER = "https://hiveapi.pajp.duckdns.org";
-// const AI_SERVER = "http://192.168.0.50:7700"; // LAN fallback
-
 // API key — must match API_KEY env var on your server
 const AI_API_KEY = "hivevoice-secret-key-change-me";
+
+// LAN address (direct, fast when on home wifi)
+const AI_SERVER_LAN = "http://192.168.0.50:7700";
+
+// External address via DuckDNS / Caddy (used when away from home)
+// Replace with your actual DuckDNS hostname:
+const AI_SERVER_WAN = "https://hiveapi.pajp.duckdns.org";
+
+/**
+ * Pick the best server: try LAN first (fast), fall back to WAN.
+ * Result is cached for the lifetime of the page.
+ */
+let _resolvedServer = null;
+async function getAIServer() {
+  if (_resolvedServer) return _resolvedServer;
+
+  // Try LAN first — if blocked or unreachable, always fall back to WAN
+  try {
+    const resp = await fetch(`${AI_SERVER_LAN}/health`, {
+      headers: { "X-HiveVoice-Key": AI_API_KEY },
+      signal: AbortSignal.timeout(3000)
+    });
+    if (resp.ok) {
+      _resolvedServer = AI_SERVER_LAN;
+      console.log("[AI] Using LAN server");
+      return _resolvedServer;
+    }
+  } catch (e) {
+    // Covers: timeout, network blocked, permission denied — all fall through to WAN
+    console.log("[AI] LAN not available (", e.message, "), trying WAN...");
+  }
+
+  // Try WAN (DuckDNS) — verify it's actually reachable before committing
+  try {
+    const resp = await fetch(`${AI_SERVER_WAN}/health`, {
+      headers: { "X-HiveVoice-Key": AI_API_KEY },
+      signal: AbortSignal.timeout(8000)
+    });
+    if (resp.ok) {
+      _resolvedServer = AI_SERVER_WAN;
+      console.log("[AI] Using WAN server (DuckDNS)");
+      return _resolvedServer;
+    }
+  } catch (e) {
+    console.log("[AI] WAN also not available:", e.message);
+  }
+
+  // Both unreachable — return WAN anyway so the main request gives a clear error
+  _resolvedServer = AI_SERVER_WAN;
+  return _resolvedServer;
+}
 
 /**
  * Send an audio blob to the server for STT + AI processing.
@@ -26,10 +71,11 @@ export async function processInspection(audioBlob, hiveId, apiaryId) {
   formData.append("today", new Date().toISOString().split("T")[0]); // YYYY-MM-DD
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 120_000); // 2 min max
+  const timeout = setTimeout(() => controller.abort(), 300_000); // 5 min max
 
+  const server = await getAIServer();
   try {
-    const resp = await fetch(`${AI_SERVER}/api/process-inspection`, {
+    const resp = await fetch(`${server}/api/process-inspection`, {
       method: "POST",
       body: formData,
       headers: {
@@ -58,8 +104,9 @@ export async function processInspection(audioBlob, hiveId, apiaryId) {
  * Returns { reachable: bool, whisper: bool, ollama: bool }
  */
 export async function checkAIServerHealth() {
+  const server = await getAIServer();
   try {
-    const resp = await fetch(`${AI_SERVER}/health`, {
+    const resp = await fetch(`${server}/health`, {
       headers: { "X-HiveVoice-Key": AI_API_KEY },
       signal: AbortSignal.timeout(5000)
     });

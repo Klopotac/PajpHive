@@ -333,9 +333,10 @@ export async function getRemindersOnce(apiaryId) {
  * @param {string} hiveId
  * @param {string} apiaryId
  * @param {string} userId
+ * @param {string} [audioUrl] - optional uploaded audio URL
  * @returns {Promise<string>} inspection document ID
  */
-export async function saveInspectionWithBuckets(aiResult, hiveId, apiaryId, userId) {
+export async function saveInspectionWithBuckets(aiResult, hiveId, apiaryId, userId, audioUrl = "") {
   const batch = writeBatch(db);
   const now = serverTimestamp();
 
@@ -345,6 +346,7 @@ export async function saveInspectionWithBuckets(aiResult, hiveId, apiaryId, user
     hiveId,
     apiaryId,
     recordedBy: userId,
+    audioUrl,
     transcript: aiResult.transcript || "",
     notes: aiResult.notes || "",
     warningCount:  (aiResult.warnings  || []).filter(w => w.severity === "warning").length,
@@ -374,7 +376,10 @@ export async function saveInspectionWithBuckets(aiResult, hiveId, apiaryId, user
 
   // 3. Timed reminders → calendar
   for (const r of (aiResult.reminders || [])) {
+    // Validate due_date — skip silently if missing or unparseable
+    if (!r.due_date) { console.warn("Skipping reminder with no due_date:", r); continue; }
     const dueDate = new Date(r.due_date + "T00:00:00");
+    if (isNaN(dueDate.getTime())) { console.warn("Skipping reminder with invalid date:", r.due_date); continue; }
     const rRef = doc(collection(db, "reminders"));
     batch.set(rRef, {
       hiveId,

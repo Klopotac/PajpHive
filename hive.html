@@ -529,7 +529,18 @@
       msg.textContent = "";
 
       try {
-        await saveInspectionWithBuckets(aiResult, hiveId, apiaryId, currentUser.uid);
+        // Upload audio first (non-blocking failure — we still save the inspection)
+        let audioUrl = "";
+        if (audioBlob) {
+          try {
+            btn.textContent = "Uploading audio...";
+            audioUrl = await uploadAudio(audioBlob, hiveId + "_" + Date.now(), apiaryId);
+          } catch (uploadErr) {
+            console.warn("Audio upload failed, continuing without it:", uploadErr);
+          }
+        }
+        btn.textContent = "Saving...";
+        await saveInspectionWithBuckets(aiResult, hiveId, apiaryId, currentUser.uid, audioUrl);
         showSuccess(aiResult);
       } catch (e) {
         msg.textContent = "Save failed: " + e.message;
