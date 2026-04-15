@@ -4,283 +4,380 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HiveVoice</title>
-  <link rel="stylesheet" href="/css/app.css">
   <link rel="manifest" href="/manifest.json">
-</head>
-<body>
-  <div id="sync-banner"></div>
-
-  <!-- Top Bar -->
-  <header class="topbar">
-    <span class="topbar-logo">HiveVoice</span>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <button class="topbar-action" id="btn-new-apiary" title="New Apiary" aria-label="Create new apiary">＋</button>
-    </div>
-  </header>
-
-  <div class="page">
-
-    <!-- ── Onboarding: no apiaries yet ── -->
-    <div id="first-apiary-form" class="hidden">
-      <div class="welcome-card" style="margin-top:24px;">
-        <div class="welcome-emoji">🍯</div>
-        <div class="welcome-title">Welcome to HiveVoice!</div>
-        <div class="welcome-sub">Create your first apiary to start tracking your hives, or join one with an invite code in Settings.</div>
-        <div class="welcome-actions">
-          <button class="btn-primary" id="btn-show-create-form">Create My First Apiary</button>
-          <a href="/settings.html" style="display:block;text-align:center;font-size:0.88rem;margin-top:4px;opacity:0.7;">Have an invite code? Go to Settings →</a>
-        </div>
-      </div>
-      <div id="create-first-form" class="inline-form hidden" style="margin-top:0;">
-        <label style="display:block;font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px;">Apiary Name</label>
-        <input type="text" id="first-apiary-name" placeholder="e.g. Garden Apiary" maxlength="60" style="margin-bottom:10px;">
-        <div style="display:flex;gap:8px;">
-          <button class="btn-primary" id="btn-save-first-apiary" style="flex:1;margin:0;">Create</button>
-          <button id="btn-cancel-create-first" style="margin:0;background:var(--off);border-color:#ccc;color:var(--muted);">Cancel</button>
-        </div>
-        <p id="first-apiary-msg" style="font-size:0.82rem;min-height:18px;margin-top:8px;"></p>
-      </div>
-    </div>
-
-    <!-- ── Main: apiary list ── -->
-    <div id="dashboard" class="hidden">
-      <p style="font-size:0.82rem;color:var(--muted);padding:12px 0 8px;">Your Apiaries</p>
-      <div id="apiaries-list"></div>
-    </div>
-
-    <!-- ── Loading state ── -->
-    <div id="loading-state" style="text-align:center;padding:60px 0;color:var(--muted);font-size:0.9rem;">
-      Loading…
-    </div>
-
-  </div><!-- /.page -->
-
-  <!-- New Apiary Sheet -->
-  <div class="sheet-overlay" id="new-apiary-sheet">
-    <div class="sheet">
-      <div class="sheet-handle"></div>
-      <div class="sheet-title">New Apiary</div>
-      <div class="field">
-        <label>Apiary Name</label>
-        <input type="text" id="new-apiary-name" placeholder="e.g. Rooftop Apiary" maxlength="60">
-      </div>
-      <button class="btn-primary" id="btn-save-apiary" style="margin:0 0 8px;">Create Apiary</button>
-      <button id="btn-cancel-apiary" style="width:100%;background:var(--off);border-color:#ccc;color:var(--muted);margin:0;">Cancel</button>
-      <p id="new-apiary-msg" style="font-size:0.82rem;min-height:18px;margin-top:8px;"></p>
-    </div>
-  </div>
-
-  <!-- Invite Code Toast (after creating apiary) -->
-  <div class="modal-overlay hidden" id="invite-modal">
-    <div class="modal">
-      <div class="modal-title">🎉 Apiary Created!</div>
-      <p class="modal-body">Share this invite code so partners can join:</p>
-      <div class="invite-code-box">
-        <div class="invite-code-text" id="invite-code-display"></div>
-      </div>
-      <div class="modal-actions" style="flex-direction:column;gap:8px;">
-        <button class="btn-primary" id="btn-copy-invite" style="margin:0;">Copy Code</button>
-        <button id="btn-dismiss-invite" style="margin:0;background:var(--off);border-color:#ccc;color:var(--muted);">Done</button>
-      </div>
-    </div>
-  </div>
-
-  <nav id="main-nav"></nav>
-
-  <style>
-    .apiary-card {
-      display: flex;
-      align-items: center;
-      background: var(--white);
-      border: 2px solid var(--black);
-      border-radius: var(--radius-lg);
-      padding: 18px 16px;
-      margin-bottom: 12px;
-      text-decoration: none;
-      color: var(--black);
-      box-shadow: var(--shadow);
-      cursor: pointer;
-      transition: box-shadow 0.15s, transform 0.1s;
-      gap: 14px;
-    }
-    .apiary-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
-    .apiary-card:active { transform: scale(0.98); }
-    .apiary-card-icon {
-      width: 46px; height: 46px; border-radius: 12px;
-      background: var(--gold-lt); border: 2px solid var(--gold-dk);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.5rem; flex-shrink: 0;
-    }
-    .apiary-card-body { flex: 1; min-width: 0; }
-    .apiary-card-name { font-weight: 800; font-size: 1.05rem; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .apiary-card-meta { font-size: 0.78rem; color: var(--muted); }
-    .apiary-card-arrow { font-size: 1.4rem; color: var(--muted); flex-shrink: 0; }
-  </style>
-
-  <script type="module">
-    import { onAuthChange, getCachedApiaryId, cacheApiaryId, getCurrentUser } from "/js/auth.js";
-    import { getApiariesByUser, createApiary } from "/js/db.js";
-    import { buildNav, updateSyncBanner, copyToClipboard } from "/js/ui.js";
-    import { syncPending, pendingCount, openOfflineDB } from "/js/offline.js";
-
-    buildNav("main-nav");
-    openOfflineDB();
-
-    onAuthChange(async (user) => {
-      if (!user) { window.location.href = "/login.html"; return; }
-      await init(user);
-    });
-
-    async function init(user) {
-      document.getElementById("loading-state").style.display = "block";
-      document.getElementById("dashboard").classList.add("hidden");
-      document.getElementById("first-apiary-form").classList.add("hidden");
-
-      let apiaries;
-      try {
-        apiaries = await getApiariesByUser(user.uid);
-      } catch (e) {
-        document.getElementById("loading-state").textContent = "Failed to load: " + e.message;
-        return;
-      }
-
-      document.getElementById("loading-state").style.display = "none";
-
-      if (apiaries.length === 0) {
-        document.getElementById("first-apiary-form").classList.remove("hidden");
-        return;
-      }
-
-      document.getElementById("dashboard").classList.remove("hidden");
-      renderApiaries(apiaries, user);
-
-      // Sync offline recordings
-      if (navigator.onLine) {
-        try {
-          const cached = getCachedApiaryId();
-          const targetId = cached || apiaries[0].id;
-          const synced = await syncPending(targetId);
-          if (synced > 0) updateSyncBanner(0, `Synced ${synced} offline recording${synced > 1 ? "s" : ""}.`);
-        } catch (_) {}
-      }
-      const pending = await pendingCount();
-      updateSyncBanner(pending);
-    }
-
-    function renderApiaries(apiaries, user) {
-      const list = document.getElementById("apiaries-list");
-      list.innerHTML = apiaries.map(a => {
-        const hiveWord = ""; // we don't have hive counts here without extra query — keep it clean
-        const isOwner = a.ownerId === user.uid;
-        const memberCount = a.members?.length ?? 1;
-        return `
-          <a class="apiary-card" href="/apiary.html?id=${a.id}">
-            <div class="apiary-card-icon">🍯</div>
-            <div class="apiary-card-body">
-              <div class="apiary-card-name">${a.name}</div>
-              <div class="apiary-card-meta">${isOwner ? "Owner" : "Partner"} · ${memberCount} member${memberCount !== 1 ? "s" : ""}</div>
-            </div>
-            <div class="apiary-card-arrow">›</div>
-          </a>`;
-      }).join("");
-    }
-
-    // ── New Apiary Sheet ─────────────────────────────────────────────────────
-    const sheet = document.getElementById("new-apiary-sheet");
-
-    document.getElementById("btn-new-apiary").onclick = () => {
-      sheet.classList.add("open");
-      document.getElementById("new-apiary-name").focus();
-    };
-    document.getElementById("btn-cancel-apiary").onclick = closeSheet;
-    sheet.onclick = e => { if (e.target === sheet) closeSheet(); };
-    function closeSheet() {
-      sheet.classList.remove("open");
-      document.getElementById("new-apiary-name").value = "";
-      document.getElementById("new-apiary-msg").textContent = "";
-    }
-
-    document.getElementById("new-apiary-name").addEventListener("keydown", e => {
-      if (e.key === "Enter") document.getElementById("btn-save-apiary").click();
-    });
-
-    document.getElementById("btn-save-apiary").onclick = async () => {
-      const name = document.getElementById("new-apiary-name").value.trim();
-      const msg  = document.getElementById("new-apiary-msg");
-      const btn  = document.getElementById("btn-save-apiary");
-      if (!name) { msg.textContent = "Please enter a name."; msg.style.color = "var(--danger)"; return; }
-      btn.disabled = true; btn.textContent = "Creating…";
-      try {
-        const user = getCurrentUser();
-        const result = await createApiary(user.uid, name);
-        cacheApiaryId(result.id);
-        closeSheet();
-        showInviteModal(result.inviteCode);
-        const apiaries = await getApiariesByUser(user.uid);
-        renderApiaries(apiaries, user);
-        document.getElementById("first-apiary-form").classList.add("hidden");
-        document.getElementById("dashboard").classList.remove("hidden");
-      } catch (e) {
-        msg.textContent = "Error: " + e.message; msg.style.color = "var(--danger)";
-      } finally {
-        btn.disabled = false; btn.textContent = "Create Apiary";
-      }
-    };
-
-    // ── First apiary create form ─────────────────────────────────────────────
-    document.getElementById("btn-show-create-form").onclick = () => {
-      document.getElementById("create-first-form").classList.remove("hidden");
-      document.getElementById("btn-show-create-form").classList.add("hidden");
-      document.getElementById("first-apiary-name").focus();
-    };
-    document.getElementById("btn-cancel-create-first").onclick = () => {
-      document.getElementById("create-first-form").classList.add("hidden");
-      document.getElementById("btn-show-create-form").classList.remove("hidden");
-    };
-
-    document.getElementById("first-apiary-name").addEventListener("keydown", e => {
-      if (e.key === "Enter") document.getElementById("btn-save-first-apiary").click();
-    });
-
-    document.getElementById("btn-save-first-apiary").onclick = async () => {
-      const name = document.getElementById("first-apiary-name").value.trim();
-      const msg  = document.getElementById("first-apiary-msg");
-      const btn  = document.getElementById("btn-save-first-apiary");
-      if (!name) { msg.textContent = "Please enter a name."; msg.style.color = "var(--danger)"; return; }
-      btn.disabled = true; btn.textContent = "Creating…";
-      try {
-        const user = getCurrentUser();
-        const result = await createApiary(user.uid, name);
-        cacheApiaryId(result.id);
-        const apiaries = await getApiariesByUser(user.uid);
-        document.getElementById("first-apiary-form").classList.add("hidden");
-        document.getElementById("dashboard").classList.remove("hidden");
-        renderApiaries(apiaries, user);
-        showInviteModal(result.inviteCode);
-      } catch (e) {
-        msg.textContent = "Error: " + e.message; msg.style.color = "var(--danger)";
-        btn.disabled = false; btn.textContent = "Create";
-      }
-    };
-
-    // ── Invite modal ─────────────────────────────────────────────────────────
-    function showInviteModal(code) {
-      document.getElementById("invite-code-display").textContent = code;
-      document.getElementById("invite-modal").classList.remove("hidden");
-    }
-    document.getElementById("btn-copy-invite").onclick = async () => {
-      const code = document.getElementById("invite-code-display").textContent;
-      const ok = await copyToClipboard(code);
-      document.getElementById("btn-copy-invite").textContent = ok ? "✓ Copied!" : "Copy failed";
-      setTimeout(() => { document.getElementById("btn-copy-invite").textContent = "Copy Code"; }, 2000);
-    };
-    document.getElementById("btn-dismiss-invite").onclick = () => {
-      document.getElementById("invite-modal").classList.add("hidden");
-    };
-    document.getElementById("invite-modal").onclick = e => {
-      if (e.target === document.getElementById("invite-modal"))
-        document.getElementById("invite-modal").classList.add("hidden");
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#b22200",
+            "primary-container": "#ff785a",
+            "on-primary-container": "#4a0800",
+            "secondary": "#254cd8",
+            "secondary-container": "#c7cfff",
+            "on-secondary-container": "#0035bf",
+            "tertiary": "#006a35",
+            "tertiary-container": "#6bfe9c",
+            "on-tertiary-container": "#005f2f",
+            "surface": "#f5f6f7",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-low": "#eff1f2",
+            "surface-container": "#e6e8ea",
+            "surface-container-high": "#e0e3e4",
+            "on-surface": "#2c2f30",
+            "on-surface-variant": "#595c5d",
+            "outline-variant": "#abadae",
+            "error": "#b41340",
+            "error-container": "#f74b6d",
+            "on-error-container": "#510017",
+            "background": "#f5f6f7",
+            "on-background": "#2c2f30",
+          },
+          fontFamily: {
+            headline: ["Plus Jakarta Sans"],
+            body: ["Inter"],
+          },
+          borderRadius: {
+            DEFAULT: "1rem",
+            lg: "2rem",
+            xl: "3rem",
+            full: "9999px",
+          },
+        },
+      },
     };
   </script>
+  <style>
+    body { font-family: 'Inter', sans-serif; min-height: 100dvh; }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    /* sync banner */
+    #sync-banner { display:none; background:#fff3cd; color:#92400e; font-size:13px; font-weight:600; text-align:center; padding:8px 16px; border-bottom:1px solid #fde68a; }
+    #sync-banner.visible { display:block; }
+    /* sheet overlay */
+    .sheet-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:200; align-items:flex-end; justify-content:center; }
+    .sheet-overlay.open { display:flex; }
+    /* modal overlay */
+    .modal-overlay { display:flex; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:300; align-items:center; justify-content:center; padding:20px; }
+    .modal-overlay.hidden { display:none !important; }
+    /* hide scrollbar on nav strip */
+    .no-scrollbar::-webkit-scrollbar { display:none; }
+    .no-scrollbar { scrollbar-width:none; }
+  </style>
+</head>
+<body class="bg-surface text-on-background font-body">
+
+<!-- TOP BAR -->
+<header class="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-xl shadow-sm">
+  <div class="flex items-center justify-between px-6 py-4 max-w-2xl mx-auto">
+    <div class="flex items-center gap-3">
+      <h1 class="font-headline font-bold text-2xl tracking-tight text-orange-700">HiveVoice</h1>
+    </div>
+    <button id="btn-new-apiary" class="p-2 bg-orange-50 hover:bg-orange-100 rounded-full active:scale-95 transition-all">
+      <span class="material-symbols-outlined text-orange-700">add</span>
+    </button>
+  </div>
+</header>
+
+<div id="sync-banner"></div>
+
+<main class="pt-24 pb-32 px-6 max-w-2xl mx-auto">
+
+  <!-- loading -->
+  <div id="loading-state" class="flex flex-col items-center justify-center py-20 text-on-surface-variant">
+    <span class="material-symbols-outlined text-5xl animate-spin text-orange-300 mb-4">sync</span>
+    <p class="text-sm font-medium">Loading…</p>
+  </div>
+
+  <!-- onboarding (no apiaries) -->
+  <div id="first-apiary-form" class="hidden">
+    <div class="bg-surface-container-lowest rounded-lg p-8 shadow-sm border border-outline-variant/10 text-center mt-4">
+      <div class="text-6xl mb-4">🍯</div>
+      <h2 class="font-headline text-2xl font-bold mb-2">Welcome to HiveVoice!</h2>
+      <p class="text-on-surface-variant text-sm mb-6">Create your first apiary to start tracking your hives, or join one with an invite code in Settings.</p>
+      <button id="btn-show-create-form" class="w-full py-4 rounded-full bg-primary text-white font-bold text-base active:scale-95 transition-all shadow-lg mb-3">
+        Create My First Apiary
+      </button>
+      <a href="/settings.html" class="block text-center text-sm text-on-surface-variant hover:text-primary transition-colors" style="text-decoration:none">Have an invite code? Go to Settings →</a>
+    </div>
+    <div id="create-first-form" class="hidden mt-4 bg-surface-container-lowest rounded-lg p-6 border border-outline-variant/10 shadow-sm">
+      <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Apiary Name</label>
+      <input type="text" id="first-apiary-name" placeholder="e.g. Garden Apiary" maxlength="60"
+        class="w-full bg-surface-container-low border-none rounded-full px-5 py-3 text-sm focus:ring-2 focus:ring-primary/20 mb-3 outline-none">
+      <div class="flex gap-3">
+        <button id="btn-save-first-apiary" class="flex-1 py-3 rounded-full bg-primary text-white font-bold active:scale-95 transition-all">Create</button>
+        <button id="btn-cancel-create-first" class="px-6 py-3 rounded-full bg-surface-container border border-outline-variant/30 text-on-surface-variant font-semibold active:scale-95 transition-all">Cancel</button>
+      </div>
+      <p id="first-apiary-msg" class="text-sm mt-2 min-h-[18px]"></p>
+    </div>
+  </div>
+
+  <!-- dashboard -->
+  <div id="dashboard" class="hidden">
+    <div class="mb-6">
+      <h2 class="font-headline text-3xl font-bold tracking-tight">Your Apiaries</h2>
+      <p id="dashboard-sub" class="text-on-surface-variant mt-1 text-sm">Loading…</p>
+    </div>
+    <div id="apiaries-list" class="space-y-6"></div>
+
+    <!-- Quick stats -->
+    <div class="mt-10">
+      <h3 class="font-headline text-lg font-bold mb-4">Performance Overview</h3>
+      <div class="grid grid-cols-2 gap-4">
+        <div class="bg-primary-container/10 p-5 rounded-lg border border-primary-container/20">
+          <span class="material-symbols-outlined text-primary mb-2 block" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24">inventory_2</span>
+          <p id="stat-hives" class="text-3xl font-headline font-bold text-on-primary-container">—</p>
+          <p class="text-xs font-medium text-on-primary-container/70">Total Hives</p>
+        </div>
+        <div class="bg-secondary-container/20 p-5 rounded-lg border border-secondary-container/30">
+          <span class="material-symbols-outlined text-secondary mb-2 block" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24">monitoring</span>
+          <p id="stat-apiaries" class="text-3xl font-headline font-bold text-on-secondary-container">—</p>
+          <p class="text-xs font-medium text-on-secondary-container/70">Apiaries</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- New Apiary sheet -->
+<div class="sheet-overlay" id="new-apiary-sheet">
+  <div class="bg-white rounded-t-[2rem] w-full max-w-2xl p-6 pb-10">
+    <div class="w-10 h-1 bg-zinc-200 rounded-full mx-auto mb-6"></div>
+    <h3 class="font-headline text-lg font-bold mb-4">New Apiary</h3>
+    <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Apiary Name</label>
+    <input type="text" id="new-apiary-name" placeholder="e.g. Rooftop Apiary" maxlength="60"
+      class="w-full bg-surface-container-low border-none rounded-full px-5 py-3 text-sm focus:ring-2 focus:ring-primary/20 mb-4 outline-none">
+    <button id="btn-save-apiary" class="w-full py-4 rounded-full bg-primary text-white font-bold text-base active:scale-95 transition-all mb-3">Create Apiary</button>
+    <button id="btn-cancel-apiary" class="w-full py-4 rounded-full bg-surface-container border border-outline-variant/30 text-on-surface-variant font-semibold active:scale-95 transition-all">Cancel</button>
+    <p id="new-apiary-msg" class="text-sm mt-2 min-h-[18px]"></p>
+  </div>
+</div>
+
+<!-- Invite code modal -->
+<div class="modal-overlay hidden" id="invite-modal">
+  <div class="bg-white rounded-lg w-full max-w-sm p-8 text-center space-y-4">
+    <div class="text-4xl">🎉</div>
+    <h4 class="font-headline text-xl font-bold">Apiary Created!</h4>
+    <p class="text-on-surface-variant text-sm">Share this invite code so partners can join:</p>
+    <div class="bg-surface-container-low rounded-lg p-4 border border-dashed border-orange-300">
+      <p id="invite-code-display" class="font-mono text-2xl font-bold tracking-widest text-orange-700"></p>
+    </div>
+    <button id="btn-copy-invite" class="w-full py-4 rounded-full bg-primary text-white font-bold active:scale-95 transition-all">Copy Code</button>
+    <button id="btn-dismiss-invite" class="w-full py-3 rounded-full bg-surface-container text-on-surface-variant font-semibold active:scale-95 transition-all">Done</button>
+  </div>
+</div>
+
+<!-- Bottom nav -->
+<nav id="main-nav" class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 bg-white/80 backdrop-blur-xl shadow-[0_-4px_40px_-4px_rgba(44,47,48,0.06)] rounded-t-[32px]"></nav>
+
+<script type="module">
+  import { onAuthChange, getCachedApiaryId, cacheApiaryId, getCurrentUser } from "/js/auth.js";
+  import { getApiariesByUser, createApiary } from "/js/db.js";
+  import { buildNav, updateSyncBanner, copyToClipboard } from "/js/ui.js";
+  import { syncPending, pendingCount, openOfflineDB } from "/js/offline.js";
+
+  buildNav("main-nav");
+  openOfflineDB();
+
+  onAuthChange(async (user) => {
+    if (!user) { window.location.href = "/login.html"; return; }
+    await init(user);
+  });
+
+  async function init(user) {
+    document.getElementById("loading-state").style.display = "flex";
+    document.getElementById("dashboard").classList.add("hidden");
+    document.getElementById("first-apiary-form").classList.add("hidden");
+
+    let apiaries;
+    try { apiaries = await getApiariesByUser(user.uid); }
+    catch (e) {
+      document.getElementById("loading-state").innerHTML = `<p class="text-red-600 text-sm">Failed to load: ${e.message}</p>`;
+      return;
+    }
+
+    document.getElementById("loading-state").style.display = "none";
+
+    if (apiaries.length === 0) {
+      document.getElementById("first-apiary-form").classList.remove("hidden");
+      return;
+    }
+
+    document.getElementById("dashboard").classList.remove("hidden");
+    document.getElementById("dashboard-sub").textContent = `Managing ${apiaries.length} active location${apiaries.length !== 1 ? "s" : ""}`;
+    document.getElementById("stat-apiaries").textContent = apiaries.length;
+    renderApiaries(apiaries, user);
+
+    if (navigator.onLine) {
+      try {
+        const cached = getCachedApiaryId();
+        const targetId = cached || apiaries[0].id;
+        const synced = await syncPending(targetId);
+        if (synced > 0) updateSyncBanner(0, `Synced ${synced} offline recording${synced > 1 ? "s" : ""}.`);
+      } catch (_) {}
+    }
+    const pending = await pendingCount();
+    updateSyncBanner(pending);
+  }
+
+  function renderApiaries(apiaries, user) {
+    const list = document.getElementById("apiaries-list");
+
+    // Offline banner at top when needed
+    const offlineBanner = !navigator.onLine ? `
+      <div class="flex items-center gap-3 bg-surface-container-low p-4 rounded-lg shadow-sm border border-outline-variant/10 mb-2">
+        <div class="bg-secondary-container p-2 rounded-full flex items-center justify-center">
+          <span class="material-symbols-outlined text-on-secondary-container text-sm" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24">sync</span>
+        </div>
+        <div class="flex-1">
+          <p class="text-sm font-semibold text-on-surface">Offline Sync Active</p>
+          <p class="text-xs text-on-surface-variant">Changes will sync once connection is restored.</p>
+        </div>
+      </div>` : "";
+
+    // Apiary images — cycle through a set of honey/field photos by index
+    const coverImages = [
+      "https://images.unsplash.com/photo-1587049352851-8d4e89133924?w=800&q=80",
+      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80",
+      "https://images.unsplash.com/photo-1504198453719-2dc3cdf0a239?w=800&q=80",
+      "https://images.unsplash.com/photo-1611843467160-25afb8df1074?w=800&q=80",
+    ];
+
+    // Member avatar placeholder colours
+    const avatarColors = ["bg-orange-200 text-orange-800","bg-blue-200 text-blue-800","bg-green-200 text-green-800","bg-purple-200 text-purple-800"];
+
+    list.innerHTML = offlineBanner + apiaries.map((a, i) => {
+      const isOwner = a.ownerId === user.uid;
+      const memberCount = a.members?.length ?? 1;
+      const imgSrc = coverImages[i % coverImages.length];
+      const statusLabel = isOwner ? "Owner" : "Partner";
+      const statusColor = isOwner ? "bg-tertiary-container text-on-tertiary-container" : "bg-primary-container/80 text-on-primary-container";
+
+      // Avatar stack — up to 3, with initials
+      const memberAvatars = (a.members || [user.uid]).slice(0, 3).map((uid, mi) => {
+        const initial = uid === user.uid ? (user.displayName || user.email || "?").charAt(0).toUpperCase() : "?";
+        const photoUrl = uid === user.uid && user.photoURL ? user.photoURL : null;
+        const colorCls = avatarColors[mi % avatarColors.length];
+        return photoUrl
+          ? `<div class="w-8 h-8 rounded-full border-2 border-white overflow-hidden -ml-2 first:ml-0">
+               <img src="${photoUrl}" class="w-full h-full object-cover" alt="member">
+             </div>`
+          : `<div class="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-xs font-bold -ml-2 first:ml-0 ${colorCls}">${initial}</div>`;
+      }).join("");
+
+      return `
+        <div class="group relative bg-surface-container-lowest rounded-lg overflow-hidden shadow-[0_4px_40px_-4px_rgba(44,47,48,0.06)] active:scale-[0.98] transition-all duration-300 cursor-pointer" onclick="location.href='/apiary.html?id=${a.id}'">
+          <div class="relative h-48 w-full">
+            <img src="${imgSrc}" alt="Apiary" class="w-full h-full object-cover">
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+            <div class="absolute bottom-4 left-6">
+              <span class="${statusColor} px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2 inline-block">${statusLabel}</span>
+              <h3 class="font-headline text-2xl font-bold text-white leading-tight">${a.name}</h3>
+            </div>
+          </div>
+          <div class="p-6 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+              <div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface">
+                <span class="material-symbols-outlined">person</span>
+              </div>
+              <div>
+                <p class="text-sm font-semibold text-on-surface">${isOwner ? (user.displayName || user.email?.split("@")[0] || "You") : "Member"}</p>
+                <p class="text-xs text-on-surface-variant">${memberCount} member${memberCount !== 1 ? "s" : ""} active</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="flex">${memberAvatars}</div>
+              <span class="material-symbols-outlined text-primary ml-1">chevron_right</span>
+            </div>
+          </div>
+        </div>`;
+    }).join("");
+
+    document.getElementById("stat-hives").textContent = "—";
+  }
+
+  // ── New Apiary sheet ─────────────────────────────────────────────────────────
+  const sheet = document.getElementById("new-apiary-sheet");
+  document.getElementById("btn-new-apiary").onclick = () => { sheet.classList.add("open"); document.getElementById("new-apiary-name").focus(); };
+  document.getElementById("btn-cancel-apiary").onclick = closeSheet;
+  sheet.onclick = e => { if (e.target === sheet) closeSheet(); };
+  function closeSheet() {
+    sheet.classList.remove("open");
+    document.getElementById("new-apiary-name").value = "";
+    document.getElementById("new-apiary-msg").textContent = "";
+  }
+  document.getElementById("new-apiary-name").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("btn-save-apiary").click(); });
+  document.getElementById("btn-save-apiary").onclick = async () => {
+    const name = document.getElementById("new-apiary-name").value.trim();
+    const msg  = document.getElementById("new-apiary-msg");
+    const btn  = document.getElementById("btn-save-apiary");
+    if (!name) { msg.textContent = "Please enter a name."; msg.style.color = "#b22200"; return; }
+    btn.disabled = true; btn.textContent = "Creating…";
+    try {
+      const user = getCurrentUser();
+      const result = await createApiary(user.uid, name);
+      cacheApiaryId(result.id);
+      closeSheet();
+      showInviteModal(result.inviteCode);
+      const apiaries = await getApiariesByUser(user.uid);
+      document.getElementById("dashboard-sub").textContent = `Managing ${apiaries.length} active location${apiaries.length !== 1 ? "s" : ""}`;
+      document.getElementById("stat-apiaries").textContent = apiaries.length;
+      renderApiaries(apiaries, user);
+      document.getElementById("first-apiary-form").classList.add("hidden");
+      document.getElementById("dashboard").classList.remove("hidden");
+    } catch (e) { msg.textContent = "Error: " + e.message; msg.style.color = "#b22200"; }
+    finally { btn.disabled = false; btn.textContent = "Create Apiary"; }
+  };
+
+  // ── First apiary create form ──────────────────────────────────────────────────
+  document.getElementById("btn-show-create-form").onclick = () => {
+    document.getElementById("create-first-form").classList.remove("hidden");
+    document.getElementById("btn-show-create-form").classList.add("hidden");
+    document.getElementById("first-apiary-name").focus();
+  };
+  document.getElementById("btn-cancel-create-first").onclick = () => {
+    document.getElementById("create-first-form").classList.add("hidden");
+    document.getElementById("btn-show-create-form").classList.remove("hidden");
+  };
+  document.getElementById("first-apiary-name").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("btn-save-first-apiary").click(); });
+  document.getElementById("btn-save-first-apiary").onclick = async () => {
+    const name = document.getElementById("first-apiary-name").value.trim();
+    const msg  = document.getElementById("first-apiary-msg");
+    const btn  = document.getElementById("btn-save-first-apiary");
+    if (!name) { msg.textContent = "Please enter a name."; msg.style.color = "#b22200"; return; }
+    btn.disabled = true; btn.textContent = "Creating…";
+    try {
+      const user = getCurrentUser();
+      const result = await createApiary(user.uid, name);
+      cacheApiaryId(result.id);
+      const apiaries = await getApiariesByUser(user.uid);
+      document.getElementById("first-apiary-form").classList.add("hidden");
+      document.getElementById("dashboard").classList.remove("hidden");
+      document.getElementById("dashboard-sub").textContent = `Managing ${apiaries.length} active location${apiaries.length !== 1 ? "s" : ""}`;
+      document.getElementById("stat-apiaries").textContent = apiaries.length;
+      renderApiaries(apiaries, user);
+      showInviteModal(result.inviteCode);
+    } catch (e) { msg.textContent = "Error: " + e.message; msg.style.color = "#b22200"; btn.disabled = false; btn.textContent = "Create"; }
+  };
+
+  // ── Invite modal ──────────────────────────────────────────────────────────────
+  function showInviteModal(code) {
+    document.getElementById("invite-code-display").textContent = code;
+    document.getElementById("invite-modal").classList.remove("hidden");
+  }
+  document.getElementById("btn-copy-invite").onclick = async () => {
+    const code = document.getElementById("invite-code-display").textContent;
+    const ok = await copyToClipboard(code);
+    const btn = document.getElementById("btn-copy-invite");
+    btn.textContent = ok ? "✓ Copied!" : "Copy failed";
+    setTimeout(() => { btn.textContent = "Copy Code"; }, 2000);
+  };
+  document.getElementById("btn-dismiss-invite").onclick = () => { document.getElementById("invite-modal").classList.add("hidden"); };
+  document.getElementById("invite-modal").onclick = e => { if (e.target === document.getElementById("invite-modal")) document.getElementById("invite-modal").classList.add("hidden"); };
+</script>
 </body>
 </html>

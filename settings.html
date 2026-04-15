@@ -1,179 +1,178 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>HiveVoice — Settings</title>
-  <link rel="stylesheet" href="/css/app.css">
-</head>
-<body>
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>HiveVoice — Settings</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script>
+      tailwind.config={theme:{extend:{colors:{primary:"#b22200","primary-container":"#ff785a","on-primary-container":"#4a0800",secondary:"#254cd8","secondary-container":"#c7cfff","on-secondary-container":"#0035bf",tertiary:"#006a35","tertiary-container":"#6bfe9c","on-tertiary-container":"#005f2f",surface:"#f5f6f7","surface-container-lowest":"#ffffff","surface-container-low":"#eff1f2","surface-container":"#e6e8ea","surface-container-high":"#e0e3e4","on-surface":"#2c2f30","on-surface-variant":"#595c5d","outline-variant":"#abadae",error:"#b41340","error-container":"#f74b6d","on-error-container":"#510017","on-background":"#2c2f30","background":"#f5f6f7"},fontFamily:{headline:["Plus Jakarta Sans"],body:["Inter"]},borderRadius:{DEFAULT:"1rem",lg:"2rem",xl:"3rem",full:"9999px"}}}};
+    </script>
+    <style>
+      body{font-family:'Inter',sans-serif;min-height:100dvh;}
+      .material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;}
+      .hidden{display:none!important;}
+      #sync-banner{display:none;background:#fff3cd;color:#92400e;font-size:13px;font-weight:600;text-align:center;padding:8px 16px;border-bottom:1px solid #fde68a;}
+      #sync-banner.visible{display:block;}
+      .modal-overlay{display:flex;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:300;align-items:center;justify-content:center;padding:20px;}
+      .modal-overlay.hidden{display:none!important;}
+    </style>
+  </head>
+  <body class="bg-surface text-on-background font-body">
   <div id="sync-banner"></div>
-
-  <!-- Top Bar -->
-  <header class="top-bar">
-    <div class="top-bar-title">Settings</div>
-    <div class="top-bar-actions"></div>
+  <header class="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-xl shadow-sm">
+    <div class="flex items-center justify-between px-6 py-4 max-w-2xl mx-auto">
+      <h1 class="font-headline font-bold text-2xl tracking-tight text-orange-700">HiveVoice</h1>
+      <span class="material-symbols-outlined text-on-surface-variant">settings</span>
+    </div>
   </header>
 
-  <main class="page-content" style="padding-bottom: 100px;">
+  <main class="pt-24 pb-32 px-6 max-w-2xl mx-auto space-y-8">
 
-    <!-- Profile Card -->
-    <div class="settings-group">
-      <div class="settings-group-label">Profile</div>
-      <div class="settings-card">
-        <div class="settings-row" style="align-items: center; gap: 14px; padding: 16px;">
-          <div class="avatar-circle" id="user-avatar">?</div>
-          <div>
-            <div id="user-name" style="font-size: 17px; font-weight: 600; color: var(--text-primary);">Loading…</div>
-            <div id="user-email" style="font-size: 13px; color: var(--text-muted); margin-top: 2px;"></div>
+    <!-- Profile Section -->
+    <section class="flex flex-col items-center gap-4 text-center">
+      <div class="relative group">
+        <div class="w-24 h-24 rounded-full p-1 bg-gradient-to-br from-primary to-primary-container shadow-lg">
+          <!-- Profile picture: photo if available, else initial -->
+          <div id="avatar-wrap" class="w-full h-full rounded-full overflow-hidden border-4 border-white bg-orange-100 flex items-center justify-center">
+            <span id="user-initial" class="text-2xl font-bold text-orange-800">?</span>
           </div>
         </div>
       </div>
-    </div>
+      <div>
+        <h2 id="user-name" class="font-headline text-2xl font-bold text-on-surface">Loading…</h2>
+        <p id="user-email" class="text-on-surface-variant text-sm"></p>
+      </div>
+    </section>
 
     <!-- Join Apiary -->
-    <div class="settings-group">
-      <div class="settings-group-label">Join an Apiary</div>
-      <div class="settings-card">
-        <div style="padding: 16px 16px 8px;">
-          <p style="font-size: 14px; color: var(--text-muted); margin: 0 0 12px;">Have an invite code from another beekeeper?</p>
-          <div class="input-row">
-            <input type="text" id="join-invite-code" class="input-field" placeholder="Enter invite code (e.g. ABC123)" maxlength="10" autocomplete="off" style="text-transform: uppercase; letter-spacing: 2px; font-weight: 600;">
-            <button class="btn btn-primary" id="btn-join-apiary" style="white-space: nowrap; width: auto;">Join</button>
-          </div>
-          <p id="join-apiary-msg" style="font-size: 13px; min-height: 20px; margin-top: 8px;"></p>
-        </div>
+    <div class="bg-surface-container-lowest rounded-lg p-6 shadow-[0_4px_40px_-4px_rgba(44,47,48,0.06)] border border-outline-variant/10">
+      <h3 class="font-headline text-lg font-semibold mb-4">Join an Apiary</h3>
+      <div class="flex gap-3">
+        <input type="text" id="join-invite-code" placeholder="Enter Invite Code" maxlength="10" autocomplete="off"
+          class="flex-1 bg-surface-container-high/50 border-none rounded-full px-5 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none uppercase tracking-widest font-semibold">
+        <button id="btn-join-apiary" class="bg-primary text-white px-8 py-3 rounded-full font-semibold active:scale-95 transition-all text-sm">Join</button>
       </div>
+      <p id="join-apiary-msg" class="text-sm mt-2 min-h-[18px]"></p>
     </div>
 
     <!-- My Apiaries -->
-    <div class="settings-group">
-      <div class="settings-group-label">My Apiaries</div>
-      <div class="settings-card" id="apiaries-list">
-        <div class="settings-row">
-          <span style="color: var(--text-muted); font-size: 14px;">Loading…</span>
+    <div class="bg-surface-container-lowest rounded-lg p-6 shadow-[0_4px_40px_-4px_rgba(44,47,48,0.06)] border border-outline-variant/10">
+      <h3 class="font-headline text-lg font-bold mb-6 flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24">hive</span>
+        My Apiaries
+      </h3>
+      <div id="apiaries-list" class="space-y-3">
+        <div class="text-on-surface-variant text-sm">Loading…</div>
+      </div>
+    </div>
+
+    <!-- AI Lab (owner-only — hidden until loaded) -->
+    <div id="ai-lab-section" class="hidden bg-surface-container-lowest rounded-lg p-6 shadow-[0_4px_40px_-4px_rgba(44,47,48,0.06)] border border-outline-variant/10">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="font-headline text-lg font-bold flex items-center gap-2">
+          <span class="material-symbols-outlined text-secondary">science</span>
+          AI Lab
+        </h3>
+        <span class="bg-secondary-container text-on-secondary-container text-[10px] uppercase tracking-widest font-bold px-3 py-1 rounded-full">Admin only</span>
+      </div>
+      <div class="space-y-6">
+        <div>
+          <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">System Prompt</label>
+          <textarea id="ai-system-prompt" spellcheck="false"
+            class="w-full bg-surface-container-low border-none rounded-lg p-4 text-sm font-mono min-h-[140px] focus:ring-2 focus:ring-secondary/20 outline-none resize-vertical"></textarea>
+          <div class="flex justify-end gap-3 mt-3">
+            <button id="btn-reset-prompt" class="text-on-surface-variant text-sm font-semibold px-4 py-2 hover:bg-surface-container-high rounded-full transition-colors">Reset</button>
+            <button id="btn-save-prompt" class="bg-secondary text-white px-6 py-2 rounded-full text-sm font-semibold active:scale-95 transition-all">Save Changes</button>
+          </div>
+          <p id="prompt-save-msg" class="text-sm min-h-[18px] mt-1"></p>
+        </div>
+        <div class="pt-6 border-t border-outline-variant/10">
+          <label class="block text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-2">Test Bench</label>
+          <textarea id="ai-test-transcript" placeholder="Enter a test transcript to run analysis…"
+            class="w-full bg-surface-container-low border-none rounded-lg p-4 text-sm font-mono min-h-[80px] focus:ring-2 focus:ring-secondary/20 outline-none resize-vertical"></textarea>
+          <button id="btn-run-test" class="w-full mt-3 bg-on-surface text-white py-3 rounded-full font-semibold flex items-center justify-center gap-2 active:scale-95 transition-all text-sm">
+            <span class="material-symbols-outlined text-sm">play_arrow</span>
+            Run Test
+          </button>
+          <p id="test-status" class="text-sm min-h-[18px] mt-2"></p>
+        </div>
+        <div id="test-output-wrap" class="hidden">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Raw AI Output</span>
+            <button id="btn-copy-output" class="text-xs text-on-surface-variant hover:text-primary font-semibold px-3 py-1 rounded-full hover:bg-surface-container-low transition-colors">Copy</button>
+          </div>
+          <pre id="test-output" class="bg-on-surface text-surface-container-low text-xs font-mono leading-relaxed p-4 rounded-lg overflow-x-auto whitespace-pre-wrap max-h-72 overflow-y-auto"></pre>
+          <div id="parsed-preview" class="hidden mt-4 space-y-3">
+            <p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Parsed Preview</p>
+            <div id="parsed-notes" class="hidden bg-surface-container-low rounded-lg p-4 text-sm leading-relaxed"></div>
+            <div id="parsed-warnings" class="hidden bg-surface-container-low rounded-lg p-4 text-sm leading-relaxed"></div>
+            <div id="parsed-reminders" class="hidden bg-surface-container-low rounded-lg p-4 text-sm leading-relaxed"></div>
+            <div id="parsed-todos" class="hidden bg-surface-container-low rounded-lg p-4 text-sm leading-relaxed"></div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Notifications -->
-    <div class="settings-group">
-      <div class="settings-group-label">Notifications</div>
-      <div class="settings-card">
-        <div class="settings-row settings-row-tappable" id="row-push-notifications">
-          <span class="settings-row-icon">🔔</span>
-          <div class="settings-row-body">
-            <span class="settings-row-title">Push Notifications</span>
-            <span class="settings-row-subtitle" id="push-status">Tap to enable</span>
-          </div>
-          <span class="settings-row-chevron">›</span>
+    <!-- Preferences -->
+    <div class="space-y-3">
+      <div class="bg-surface-container-lowest rounded-full px-6 py-4 flex items-center justify-between shadow-sm border border-outline-variant/10">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+          <span class="font-medium">Push Notifications</span>
+        </div>
+        <div>
+          <span id="push-status" class="text-xs text-on-surface-variant mr-2">Tap to enable</span>
+          <button id="push-toggle" class="w-12 h-6 bg-surface-container-high rounded-full relative flex items-center transition-colors">
+            <div class="w-5 h-5 bg-white rounded-full absolute left-0.5 shadow-sm transition-all"></div>
+          </button>
         </div>
       </div>
-    </div>
-
-    <!-- About -->
-    <div class="settings-group">
-      <div class="settings-group-label">About</div>
-      <div class="settings-card">
-        <div class="settings-row">
-          <span class="settings-row-icon">🐝</span>
-          <div class="settings-row-body">
-            <span class="settings-row-title">HiveVoice</span>
-            <span class="settings-row-subtitle">Version 1.0.0</span>
-          </div>
+      <div class="bg-surface-container-lowest rounded-full px-6 py-4 flex items-center justify-between shadow-sm border border-outline-variant/10">
+        <div class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-on-surface-variant">info</span>
+          <span class="font-medium">About HiveVoice</span>
+        </div>
+        <div class="flex items-center gap-1 text-on-surface-variant">
+          <span class="text-xs">v1.0.0</span>
+          <span class="material-symbols-outlined text-sm opacity-40">chevron_right</span>
         </div>
       </div>
-    </div>
-
-    <!-- Sign Out -->
-    <div class="settings-group">
-      <div class="settings-card">
-        <div class="settings-row settings-row-tappable settings-row-danger" id="btn-signout">
-          <span class="settings-row-icon">🚪</span>
-          <div class="settings-row-body">
-            <span class="settings-row-title">Sign Out</span>
-          </div>
-        </div>
-      </div>
+      <button id="btn-signout" class="w-full bg-red-50 text-error rounded-full px-6 py-4 flex items-center justify-center gap-2 font-bold hover:bg-red-100 transition-colors active:scale-95">
+        <span class="material-symbols-outlined">logout</span>
+        Sign Out
+      </button>
     </div>
 
   </main>
 
-  <!-- Confirm Modal -->
+  <!-- Sign Out Modal -->
   <div class="modal-overlay hidden" id="confirm-modal">
-    <div class="modal-card">
-      <h3 class="modal-title" id="confirm-title">Sign Out?</h3>
-      <p class="modal-message" id="confirm-message">You'll need to log back in to access your hives.</p>
-      <div class="modal-actions">
-        <button class="btn btn-secondary" id="confirm-cancel">Cancel</button>
-        <button class="btn btn-danger" id="confirm-ok">Sign Out</button>
+    <div class="bg-white rounded-lg w-full max-w-sm p-8 text-center space-y-6">
+      <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto">
+        <span class="material-symbols-outlined text-error text-3xl">logout</span>
+      </div>
+      <div class="space-y-2">
+        <h4 class="font-headline text-xl font-bold">Sign Out?</h4>
+        <p class="text-on-surface-variant text-sm">Are you sure you want to end your current session?</p>
+      </div>
+      <div class="flex flex-col gap-3">
+        <button id="confirm-ok" class="w-full bg-error text-white py-4 rounded-full font-bold active:scale-95 transition-all">Yes, Sign Out</button>
+        <button id="confirm-cancel" class="w-full bg-surface-container py-4 rounded-full font-bold active:scale-95 transition-all text-on-surface">Cancel</button>
       </div>
     </div>
   </div>
 
-  <nav id="main-nav" class="bottom-nav"></nav>
-
-  <style>
-    .settings-group { margin: 0 16px 8px; }
-    .settings-group-label {
-      font-size: 12px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.8px; color: var(--muted);
-      padding: 16px 4px 6px;
-    }
-    .settings-card {
-      background: var(--white);
-      border-radius: var(--radius-lg);
-      border: 2px solid var(--black);
-      overflow: hidden;
-    }
-    .settings-row {
-      display: flex; align-items: center; gap: 12px;
-      padding: 14px 16px;
-      border-bottom: 1px solid #eee;
-    }
-    .settings-row:last-child { border-bottom: none; }
-    .settings-row-tappable { cursor: pointer; transition: background 0.15s; }
-    .settings-row-tappable:hover { background: rgba(0,0,0,0.03); }
-    .settings-row-tappable:active { background: rgba(0,0,0,0.07); }
-    .settings-row-icon { font-size: 20px; flex-shrink: 0; width: 28px; text-align: center; }
-    .settings-row-body { flex: 1; display: flex; flex-direction: column; gap: 2px; }
-    .settings-row-title { font-size: 15px; font-weight: 500; color: var(--black); }
-    .settings-row-subtitle { font-size: 13px; color: var(--muted); }
-    .settings-row-chevron { color: var(--muted); font-size: 22px; font-weight: 300; }
-    .settings-row-danger .settings-row-title { color: var(--danger); }
-    .avatar-circle {
-      width: 48px; height: 48px; border-radius: 50%;
-      background: linear-gradient(135deg, var(--gold), var(--gold-dk));
-      display: flex; align-items: center; justify-content: center;
-      font-size: 20px; font-weight: 700; color: var(--black); flex-shrink: 0;
-      border: 2px solid var(--black);
-    }
-    .input-row { display: flex; gap: 10px; }
-    .input-row .input-field { flex: 1; }
-    .apiary-header-row {
-      padding: 12px 16px 8px;
-      display: flex; align-items: center; justify-content: space-between;
-      border-bottom: 1px solid #eee;
-    }
-    .apiary-name-text { font-weight: 700; font-size: 15px; }
-    .apiary-role-badge {
-      font-size: 11px; font-weight: 700; padding: 2px 8px;
-      border-radius: 99px; background: var(--gold-lt);
-      border: 1px solid var(--gold-dk); color: #7a5c00;
-    }
-    .apiary-member-row {
-      display: flex; align-items: center; gap: 8px;
-      padding: 10px 16px; border-bottom: 1px solid #eee; font-size: 14px;
-    }
-    .apiary-member-row:last-child { border-bottom: none; }
-    .member-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold-dk); flex-shrink: 0; }
-  </style>
+  <nav id="main-nav" class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 bg-white/80 backdrop-blur-xl shadow-[0_-4px_40px_-4px_rgba(44,47,48,0.06)] rounded-t-[32px]"></nav>
 
   <script type="module">
     import { requireAuth, logOut, clearCachedApiaryId, cacheApiaryId } from "/js/auth.js";
     import { getApiariesByUser, getApiaryByInviteCode, joinApiary, getDisplayName } from "/js/db.js";
     import { messaging } from "/js/firebase-config.js";
     import { buildNav } from "/js/ui.js";
+    import { getSystemPrompt, saveSystemPrompt, resetSystemPrompt, testPrompt } from "/js/ai.js";
 
     buildNav("main-nav");
     const user = await requireAuth();
@@ -182,39 +181,52 @@
     const displayName = user.displayName || user.email?.split("@")[0] || "Beekeeper";
     document.getElementById("user-name").textContent = displayName;
     document.getElementById("user-email").textContent = user.email;
-    document.getElementById("user-avatar").textContent = displayName.charAt(0).toUpperCase();
+    const avatarWrap = document.getElementById("avatar-wrap");
+    if (user.photoURL) {
+      avatarWrap.innerHTML = `<img src="${user.photoURL}" class="w-full h-full object-cover" alt="${displayName}">`;
+    } else {
+      document.getElementById("user-initial").textContent = displayName.charAt(0).toUpperCase();
+    }
 
-    // ── Apiaries List ──────────────────────────────────────────────────────────
+    // ── Apiaries ───────────────────────────────────────────────────────────────
+    let userIsOwnerOfAny = false;
+
     async function loadApiaries() {
       const list = document.getElementById("apiaries-list");
       let apiaries;
-      try {
-        apiaries = await getApiariesByUser(user.uid);
-      } catch (e) {
-        list.innerHTML = `<div class="settings-row"><span style="color:var(--danger);font-size:14px;">Failed to load: ${e.message}</span></div>`;
-        return;
-      }
+      try { apiaries = await getApiariesByUser(user.uid); }
+      catch (e) { list.innerHTML = `<p class="text-red-600 text-sm">Failed to load: ${e.message}</p>`; return; }
       if (apiaries.length === 0) {
-        list.innerHTML = `<div class="settings-row"><span style="color:var(--muted);font-size:14px;">No apiaries yet. Create one from the Dashboard or join one above.</span></div>`;
-        return;
+        list.innerHTML = `<p class="text-on-surface-variant text-sm">No apiaries yet.</p>`; return;
       }
       const allUids = [...new Set(apiaries.flatMap(a => a.members))];
       const nameMap = {};
       await Promise.all(allUids.map(async uid => { nameMap[uid] = await getDisplayName(uid, user.uid); }));
+
+      userIsOwnerOfAny = apiaries.some(a => a.ownerId === user.uid);
+      // Show AI Lab only for owners
+      if (userIsOwnerOfAny) {
+        document.getElementById("ai-lab-section").classList.remove("hidden");
+        document.getElementById("ai-system-prompt").value = await getSystemPrompt();
+      }
+
       list.innerHTML = apiaries.map(a => {
         const isOwner = a.ownerId === user.uid;
-        const membersHtml = a.members.map(uid =>
-          `<div class="apiary-member-row">
-            <div class="member-dot"></div>
-            <span>${nameMap[uid] || uid}${uid === user.uid ? " (you)" : ""}${uid === a.ownerId ? " · Owner" : ""}</span>
-          </div>`
-        ).join("");
-        return `
-          <div class="apiary-header-row">
-            <span class="apiary-name-text">🍯 ${a.name}</span>
-            <span class="apiary-role-badge">${isOwner ? "Owner" : "Partner"}</span>
-          </div>${membersHtml}`;
-      }).join('<div style="height:1px;background:#eee;"></div>');
+        const iconName = isOwner ? "location_on" : "forest";
+        const memberCount = a.members?.length ?? 1;
+        return `<div class="flex items-center justify-between p-4 bg-surface-container-low rounded-lg group hover:bg-primary-container/10 transition-colors cursor-pointer" onclick="location.href='/apiary.html?id=${a.id}'">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm">
+              <span class="material-symbols-outlined text-primary text-lg" style="font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24">${iconName}</span>
+            </div>
+            <div>
+              <p class="font-semibold text-on-surface text-sm">${a.name}</p>
+              <p class="text-xs text-on-surface-variant">${memberCount} active hive${memberCount !== 1 ? "s" : ""} · ${isOwner ? "Owner" : "Partner"}</p>
+            </div>
+          </div>
+          <span class="material-symbols-outlined text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity">chevron_right</span>
+        </div>`;
+      }).join("");
     }
     loadApiaries();
 
@@ -222,45 +234,194 @@
     const joinInput = document.getElementById("join-invite-code");
     joinInput.addEventListener("input", () => { joinInput.value = joinInput.value.toUpperCase(); });
     joinInput.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("btn-join-apiary").click(); });
-
     document.getElementById("btn-join-apiary").onclick = async () => {
       const msg = document.getElementById("join-apiary-msg");
       const btn = document.getElementById("btn-join-apiary");
       const code = joinInput.value.trim().toUpperCase();
-      if (!code) { msg.textContent = "Please enter an invite code."; msg.style.color = "var(--danger)"; return; }
-      btn.disabled = true;
-      msg.textContent = "Joining…"; msg.style.color = "var(--muted)";
+      if (!code) { msg.textContent = "Please enter an invite code."; msg.style.color = "#b22200"; return; }
+      btn.disabled = true; msg.textContent = "Joining…"; msg.style.color = "#595c5d";
       try {
         const apiary = await getApiaryByInviteCode(code);
-        if (!apiary) { msg.textContent = "Invalid invite code. Double-check and try again."; msg.style.color = "var(--danger)"; btn.disabled = false; return; }
+        if (!apiary) { msg.textContent = "Invalid invite code."; msg.style.color = "#b22200"; btn.disabled = false; return; }
         await joinApiary(apiary.id, user.uid);
         cacheApiaryId(apiary.id);
         joinInput.value = "";
-        msg.textContent = `✓ Joined "${apiary.name}"! Go to the Dashboard to see your hives.`;
-        msg.style.color = "var(--success)";
+        msg.textContent = `✓ Joined "${apiary.name}"!`; msg.style.color = "#006a35";
         await loadApiaries();
-      } catch (e) {
-        msg.textContent = "Error: " + e.message; msg.style.color = "var(--danger)";
-      } finally { btn.disabled = false; }
+      } catch (e) { msg.textContent = "Error: " + e.message; msg.style.color = "#b22200"; }
+      finally { btn.disabled = false; }
     };
+
+// ── AI Lab ─────────────────────────────────────────────────────────────────
+
+document.getElementById("btn-save-prompt").onclick = async () => {
+  const prompt = document.getElementById("ai-system-prompt").value;
+
+  await saveSystemPrompt(prompt);
+
+  const msg = document.getElementById("prompt-save-msg");
+  msg.textContent = "✓ Prompt saved";
+  msg.style.color = "#006a35";
+
+  setTimeout(() => {
+    msg.textContent = "";
+  }, 2500);
+};
+
+document.getElementById("btn-reset-prompt").onclick = async () => {
+  if (!confirm("Reset to the default system prompt?")) return;
+
+  const prompt = DEFAULT_SYSTEM_PROMPT;
+
+  // update UI
+  document.getElementById("ai-system-prompt").value = prompt;
+
+  // ALSO update server (optional upgrade you asked for)
+  await saveSystemPrompt(prompt);
+
+  const msg = document.getElementById("prompt-save-msg");
+  msg.textContent = "✓ Reset to default";
+  msg.style.color = "#595c5d";
+
+  setTimeout(() => {
+    msg.textContent = "";
+  }, 2500);
+};
+
+document.getElementById("btn-run-test").onclick = async () => {
+  const transcript = document.getElementById("ai-test-transcript").value.trim();
+  const status = document.getElementById("test-status");
+  const outputWrap = document.getElementById("test-output-wrap");
+  const outputEl = document.getElementById("test-output");
+  const btn = document.getElementById("btn-run-test");
+
+  if (!transcript) {
+    status.textContent = "Enter a transcript first.";
+    status.style.color = "#b22200";
+    return;
+  }
+
+  btn.disabled = true;
+  btn.querySelector("span:last-child") &&
+    (btn.querySelector("span:last-child").textContent = "Running…");
+
+  status.textContent = "Sending to Ollama…";
+  status.style.color = "#595c5d";
+  outputWrap.classList.add("hidden");
+
+  try {
+    const result = await testPrompt(
+      document.getElementById("ai-system-prompt").value,
+      transcript
+    );
+
+    outputEl.textContent = result.raw;
+    outputWrap.classList.remove("hidden");
+
+    status.textContent = `✓ Done (model: ${result.model})`;
+    status.style.color = "#006a35";
+
+    const parsedPreview = document.getElementById("parsed-preview");
+
+    try {
+      let clean = result.raw.trim().replace(/^```json|^```|```$/gm, "").trim();
+      const data = JSON.parse(clean);
+
+      parsedPreview.classList.remove("hidden");
+
+      const pn = document.getElementById("parsed-notes");
+      const pw = document.getElementById("parsed-warnings");
+      const pr = document.getElementById("parsed-reminders");
+      const pt = document.getElementById("parsed-todos");
+
+      if (data.notes) {
+        pn.classList.remove("hidden");
+        pn.innerHTML =
+          `<strong class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">📝 Notes</strong>` +
+          data.notes;
+      } else pn.classList.add("hidden");
+
+      if (data.warnings?.length) {
+        pw.classList.remove("hidden");
+        pw.innerHTML =
+          `<strong class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">⚠️ Warnings</strong>` +
+          data.warnings
+            .map(
+              (w) =>
+                `<div class="${
+                  w.severity === "danger" ? "text-red-700" : "text-orange-700"
+                }">• ${w.text} (${w.severity})</div>`
+            )
+            .join("");
+      } else pw.classList.add("hidden");
+
+      if (data.reminders?.length) {
+        pr.classList.remove("hidden");
+        pr.innerHTML =
+          `<strong class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">📅 Reminders</strong>` +
+          data.reminders
+            .map((r) => `<div>• ${r.text} (in ${r.days_from_now}d)</div>`)
+            .join("");
+      } else pr.classList.add("hidden");
+
+      if (data.todos?.length) {
+        pt.classList.remove("hidden");
+        pt.innerHTML =
+          `<strong class="block text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-2">✅ To-Dos</strong>` +
+          data.todos
+            .map(
+              (t) =>
+                `<div>• ${t.text}${
+                  t.next_inspection ? " <em>(next inspection)</em>" : ""
+                }</div>`
+            )
+            .join("");
+      } else pt.classList.add("hidden");
+    } catch {
+      parsedPreview.classList.add("hidden");
+      status.textContent += " — ⚠️ Invalid JSON (see raw output)";
+      status.style.color = "#b22200";
+    }
+  } catch (e) {
+    status.textContent = "Error: " + e.message;
+    status.style.color = "#b22200";
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<span class="material-symbols-outlined text-sm">play_arrow</span>Run Test`;
+  }
+};
+
+document.getElementById("btn-copy-output").onclick = () => {
+  navigator.clipboard
+    .writeText(document.getElementById("test-output").textContent)
+    .then(() => {
+      const btn = document.getElementById("btn-copy-output");
+      btn.textContent = "Copied!";
+      setTimeout(() => {
+        btn.textContent = "Copy";
+      }, 1500);
+    });
+};
 
     // ── Push Notifications ─────────────────────────────────────────────────────
     const pushStatus = document.getElementById("push-status");
+    const pushToggle = document.getElementById("push-toggle");
     if ("Notification" in window) {
-      if (Notification.permission === "granted") pushStatus.textContent = "Enabled ✓";
+      if (Notification.permission === "granted") { pushStatus.textContent = "Enabled ✓"; pushToggle.classList.replace("bg-surface-container-high","bg-primary"); pushToggle.querySelector("div").classList.replace("left-0.5","right-0.5"); }
       else if (Notification.permission === "denied") pushStatus.textContent = "Blocked in browser settings";
-    } else {
-      pushStatus.textContent = "Not supported in this browser";
-    }
-    document.getElementById("row-push-notifications").onclick = async () => {
-      if (!("Notification" in window) || !messaging) { pushStatus.textContent = "Not supported"; return; }
+    } else { pushStatus.textContent = "Not supported"; }
+    pushToggle.onclick = async () => {
+      if (!("Notification" in window)) { pushStatus.textContent = "Not supported"; return; }
       if (Notification.permission === "denied") { pushStatus.textContent = "Blocked — enable in browser settings"; return; }
       const permission = await Notification.requestPermission();
-      pushStatus.textContent = permission === "granted" ? "Enabled ✓" : "Permission denied";
-      pushStatus.style.color = permission === "granted" ? "var(--success)" : "var(--danger)";
+      if (permission === "granted") {
+        pushStatus.textContent = "Enabled ✓"; pushStatus.style.color = "#006a35";
+        pushToggle.classList.replace("bg-surface-container-high","bg-primary");
+        pushToggle.querySelector("div").classList.replace("left-0.5","right-0.5");
+      } else { pushStatus.textContent = "Permission denied"; pushStatus.style.color = "#b22200"; }
     };
 
-    // ── Sign Out modal ─────────────────────────────────────────────────────────
+    // ── Sign Out ───────────────────────────────────────────────────────────────
     const modal = document.getElementById("confirm-modal");
     document.getElementById("btn-signout").onclick = () => modal.classList.remove("hidden");
     document.getElementById("confirm-cancel").onclick = () => modal.classList.add("hidden");
@@ -273,5 +434,5 @@
       window.location.href = "/login.html";
     };
   </script>
-</body>
-</html>
+  </body>
+  </html>

@@ -1,7 +1,7 @@
 // sw.js — HiveVoice Service Worker
 // Provides offline caching for the app shell
 
-const CACHE_NAME = "hivevoice-v2";
+const CACHE_NAME = "hivevoice-v3";
 
 const APP_SHELL = [
   "/",
@@ -46,13 +46,14 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
-  // Always go network-first for Firebase APIs
+  // Always go network-first for Firebase APIs and the AI backend
   if (
     url.hostname.includes("firebaseio.com") ||
     url.hostname.includes("googleapis.com") ||
     url.hostname.includes("firebase.com") ||
     url.hostname.includes("firebaseapp.com") ||
-    url.hostname.includes("gstatic.com")
+    url.hostname.includes("gstatic.com") ||
+    url.hostname.includes("duckdns.org")
   ) {
     event.respondWith(fetch(event.request));
     return;

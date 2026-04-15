@@ -4,237 +4,252 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HiveVoice — Calendar</title>
-  <link rel="stylesheet" href="/css/app.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <script>
+    tailwind.config={theme:{extend:{colors:{primary:"#b22200","primary-container":"#ff785a","on-primary-container":"#4a0800",secondary:"#254cd8","secondary-container":"#c7cfff","on-secondary-container":"#0035bf",tertiary:"#006a35","tertiary-container":"#6bfe9c","on-tertiary-container":"#005f2f",surface:"#f5f6f7","surface-container-lowest":"#ffffff","surface-container-low":"#eff1f2","surface-container":"#e6e8ea","surface-container-high":"#e0e3e4","on-surface":"#2c2f30","on-surface-variant":"#595c5d","outline-variant":"#abadae",error:"#b41340","on-background":"#2c2f30","background":"#f5f6f7"},fontFamily:{headline:["Plus Jakarta Sans"],body:["Inter"]},borderRadius:{DEFAULT:"1rem",lg:"2rem",xl:"3rem",full:"9999px"}}}};
+  </script>
+  <style>
+    body{font-family:'Inter',sans-serif;min-height:100dvh;}
+    .material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24;}
+    .hidden{display:none!important;}
+    #sync-banner{display:none;background:#fff3cd;color:#92400e;font-size:13px;font-weight:600;text-align:center;padding:8px 16px;border-bottom:1px solid #fde68a;}
+    #sync-banner.visible{display:block;}
+  </style>
 </head>
-<body>
-  <div id="sync-banner"></div>
-  <h1>Shared Calendar</h1>
+<body class="bg-surface text-on-background font-body">
+<div id="sync-banner"></div>
+<header class="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-xl shadow-sm">
+  <div class="flex items-center justify-between px-6 py-4 max-w-2xl mx-auto">
+    <h1 class="font-headline font-bold text-2xl tracking-tight text-orange-700">HiveVoice</h1>
+    <span class="material-symbols-outlined text-on-surface-variant">calendar_month</span>
+  </div>
+</header>
 
+<main class="pt-24 pb-32 px-6 max-w-2xl mx-auto space-y-6">
   <div id="no-apiary-msg" class="hidden">
-    <p>No apiary selected. <a href="/index.html">Go to the Dashboard</a> to set one up.</p>
+    <div class="text-center py-16 text-on-surface-variant">
+      <span class="material-symbols-outlined text-5xl text-orange-200 mb-4 block">calendar_month</span>
+      <p class="font-semibold text-on-surface mb-2">No apiary selected</p>
+      <a href="/index.html" class="text-primary font-semibold text-sm" style="text-decoration:none">Go to the Dashboard →</a>
+    </div>
   </div>
 
   <div id="calendar-wrap">
-    <div id="calendar-controls">
-      <button id="btn-prev">&larr;</button>
-      <span id="month-label"></span>
-      <button id="btn-next">&rarr;</button>
+    <!-- Month header -->
+    <div class="flex items-center justify-between mb-4">
+      <button id="btn-prev" class="p-2 hover:bg-surface-container-low rounded-full active:scale-95 transition-all">
+        <span class="material-symbols-outlined text-on-surface">chevron_left</span>
+      </button>
+      <h2 id="month-label" class="font-headline text-xl font-bold text-on-surface"></h2>
+      <button id="btn-next" class="p-2 hover:bg-surface-container-low rounded-full active:scale-95 transition-all">
+        <span class="material-symbols-outlined text-on-surface">chevron_right</span>
+      </button>
     </div>
 
-    <table id="calendar-grid" border="1">
-      <thead>
-        <tr>
-          <th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th>
-        </tr>
-      </thead>
-      <tbody id="calendar-body"></tbody>
-    </table>
+    <!-- Calendar grid -->
+    <div class="bg-surface-container-lowest rounded-lg shadow-sm border border-outline-variant/10 overflow-hidden mb-6">
+      <table id="calendar-grid" class="w-full border-collapse table-fixed">
+        <thead>
+          <tr id="cal-head-row"></tr>
+        </thead>
+        <tbody id="calendar-body"></tbody>
+      </table>
+    </div>
 
-    <section>
-      <h2 id="selected-date-label">Click a date to see reminders</h2>
-      <div id="day-tasks"></div>
-    </section>
+    <!-- Selected day tasks -->
+    <div id="day-tasks-panel" class="bg-surface-container-lowest rounded-lg border border-outline-variant/10 shadow-sm p-5 min-h-[80px]">
+      <h3 id="selected-date-label" class="font-semibold text-on-surface mb-3 text-sm">Select a date to see reminders</h3>
+      <div id="day-tasks" class="space-y-3"></div>
+    </div>
+
+    <!-- Undated todos section -->
+    <div class="mt-6">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="h-px flex-1 bg-outline-variant/30"></div>
+        <span class="text-xs font-bold text-on-surface-variant uppercase tracking-widest">Undated To-Dos</span>
+        <div class="h-px flex-1 bg-outline-variant/30"></div>
+      </div>
+      <div id="undated-todos" class="space-y-3">
+        <p class="text-on-surface-variant text-sm text-center py-4">No undated to-dos.</p>
+      </div>
+    </div>
   </div>
+</main>
 
-  <nav id="main-nav"></nav>
+<nav id="main-nav" class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 pb-6 pt-3 bg-white/80 backdrop-blur-xl shadow-[0_-4px_40px_-4px_rgba(44,47,48,0.06)] rounded-t-[32px]"></nav>
 
-  <script type="module">
-    import { requireAuth, getCachedApiaryId } from "/js/auth.js";
-    import { listenReminders, toggleReminder, deleteReminder, listenHives, getRemindersOnce } from "/js/db.js";
-    import { buildNav, updateSyncBanner } from "/js/ui.js";
-    import { pendingCount, openOfflineDB } from "/js/offline.js";
+<script type="module">
+  import { requireAuth, getCachedApiaryId } from "/js/auth.js";
+  import { listenReminders, toggleReminder, deleteReminder, listenHives, getRemindersOnce } from "/js/db.js";
+  import { buildNav, updateSyncBanner } from "/js/ui.js";
+  import { pendingCount, openOfflineDB } from "/js/offline.js";
 
-    buildNav("main-nav");
-    openOfflineDB();
+  buildNav("main-nav");
+  openOfflineDB();
+  const user = await requireAuth();
+  const apiaryId = getCachedApiaryId();
+  const pending = await pendingCount();
+  updateSyncBanner(pending);
 
-    const user = await requireAuth();
-    const apiaryId = getCachedApiaryId();
+  if (!apiaryId) {
+    document.getElementById("no-apiary-msg").classList.remove("hidden");
+    document.getElementById("calendar-wrap").style.display = "none";
+  }
 
-    const pending = await pendingCount();
-    updateSyncBanner(pending);
+  let reminders = [], hiveNameMap = {}, unsubReminders = null, unsubHives = null;
+  let currentYear = new Date().getFullYear(), currentMonth = new Date().getMonth(), selectedDate = null;
 
-    if (!apiaryId) {
-      document.getElementById("no-apiary-msg").classList.remove("hidden");
-      document.getElementById("calendar-wrap").style.display = "none";
-    }
+  const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const calHead = document.getElementById("cal-head-row");
+  calHead.innerHTML = days.map(d => `<th class="text-center text-xs font-medium text-on-surface-variant uppercase tracking-widest py-3">${d}</th>`).join("");
 
-    let reminders = [];
-    let hiveNameMap = {};
-    let unsubReminders = null;
-    let unsubHives = null;
-    let currentYear = new Date().getFullYear();
-    let currentMonth = new Date().getMonth();
-    let selectedDate = null;
+  renderCalendar();
 
-    // Render immediately so the grid is always visible
-    renderCalendar();
-
-    if (apiaryId) {
-      unsubHives = listenHives(apiaryId, (hives) => {
-        hiveNameMap = {};
-        hives.forEach(h => { hiveNameMap[h.id] = h.name; });
-        renderCalendar();
-        if (selectedDate) showDayTasks(selectedDate);
-      });
-
-      unsubReminders = listenReminders(apiaryId, (data) => {
+  if (apiaryId) {
+    unsubHives = listenHives(apiaryId, (hives) => {
+      hiveNameMap = {};
+      hives.forEach(h => { hiveNameMap[h.id] = h.name; });
+      renderCalendar();
+      if (selectedDate) showDayTasks(selectedDate);
+    });
+    unsubReminders = listenReminders(apiaryId, (data) => {
+      reminders = data;
+      renderCalendar();
+      if (selectedDate) showDayTasks(selectedDate);
+      renderUndatedTodos();
+    });
+    getRemindersOnce(apiaryId).then(data => {
+      if (reminders.length === 0 && data.length > 0) {
         reminders = data;
         renderCalendar();
         if (selectedDate) showDayTasks(selectedDate);
-      });
-
-      // Also do an immediate one-time fetch so the calendar populates even
-      // before the real-time listener fires (helpful while index is building)
-      getRemindersOnce(apiaryId).then(data => {
-        if (reminders.length === 0 && data.length > 0) {
-          reminders = data;
-          renderCalendar();
-          if (selectedDate) showDayTasks(selectedDate);
-        }
-      }).catch(() => {});
-    }
-
-    function renderCalendar() {
-      const label = document.getElementById("month-label");
-      label.textContent = new Date(currentYear, currentMonth, 1)
-        .toLocaleDateString(undefined, { month: "long", year: "numeric" });
-
-      const body = document.getElementById("calendar-body");
-      body.innerHTML = "";
-
-      const firstDay = new Date(currentYear, currentMonth, 1).getDay();
-      const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-      const today = new Date();
-
-      // Build day → count map
-      const dayMap = {};
-      reminders.forEach(r => {
-        if (!r.dueDate || r.done) return;
-        const d = r.dueDate.toDate ? r.dueDate.toDate() : new Date(r.dueDate);
-        if (d.getFullYear() === currentYear && d.getMonth() === currentMonth) {
-          const key = d.getDate();
-          dayMap[key] = (dayMap[key] || 0) + 1;
-        }
-      });
-
-      let day = 1;
-      for (let row = 0; row < 6; row++) {
-        const tr = document.createElement("tr");
-        for (let col = 0; col < 7; col++) {
-          const td = document.createElement("td");
-          const isEmpty = (row === 0 && col < firstDay) || day > daysInMonth;
-          if (!isEmpty) {
-            const d = day;
-            const isToday =
-              d === today.getDate() &&
-              currentMonth === today.getMonth() &&
-              currentYear === today.getFullYear();
-            const isSelected = selectedDate &&
-              d === selectedDate.getDate() &&
-              currentMonth === selectedDate.getMonth() &&
-              currentYear === selectedDate.getFullYear();
-
-            td.textContent = d;
-            if (dayMap[d]) {
-              const badge = document.createElement("sup");
-              badge.textContent = ` (${dayMap[d]})`;
-              td.appendChild(badge);
-            }
-            if (isToday) td.style.fontWeight = "bold";
-            if (isSelected) td.style.outline = "2px solid #333";
-            td.style.cursor = "pointer";
-            td.onclick = () => {
-              selectedDate = new Date(currentYear, currentMonth, d);
-              showDayTasks(selectedDate);
-              renderCalendar();
-            };
-            day++;
-          }
-          tr.appendChild(td);
-        }
-        body.appendChild(tr);
-        if (day > daysInMonth) break;
+        renderUndatedTodos();
       }
-    }
+    }).catch(() => {});
+  }
 
-    function showDayTasks(date) {
-      const label = document.getElementById("selected-date-label");
-      label.textContent = date.toLocaleDateString(undefined, {
-        weekday: "long", month: "long", day: "numeric", year: "numeric"
-      });
-
-      const container = document.getElementById("day-tasks");
-      const dayTasks = reminders.filter(r => {
-        if (!r.dueDate) return false;
-        const d = r.dueDate.toDate ? r.dueDate.toDate() : new Date(r.dueDate);
-        return (
-          d.getFullYear() === date.getFullYear() &&
-          d.getMonth() === date.getMonth() &&
-          d.getDate() === date.getDate()
-        );
-      });
-
-      if (dayTasks.length === 0) {
-        container.innerHTML = "<p>No reminders for this day.</p>";
-        return;
+  function renderCalendar() {
+    document.getElementById("month-label").textContent = new Date(currentYear, currentMonth, 1)
+      .toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    const body = document.getElementById("calendar-body");
+    body.innerHTML = "";
+    const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const today = new Date();
+    const dayMap = {};
+    reminders.forEach(r => {
+      if (!r.dueDate || r.done) return;
+      const d = r.dueDate.toDate ? r.dueDate.toDate() : new Date(r.dueDate);
+      if (d.getFullYear() === currentYear && d.getMonth() === currentMonth) {
+        const key = d.getDate();
+        dayMap[key] = (dayMap[key] || 0) + 1;
       }
-
-      container.innerHTML = dayTasks.map(r => {
-        const hiveName = hiveNameMap[r.hiveId] || "Unknown Hive";
-        return `
-          <div>
-            <label>
-              <input type="checkbox" data-id="${r.id}" ${r.done ? "checked" : ""}>
-              <strong>${hiveName}:</strong> ${r.text} ${r.done ? "<em>(done)</em>" : ""}
-            </label>
-            <button data-delete-reminder="${r.id}">Delete</button>
-          </div>
-        `;
-      }).join("");
-
-      container.querySelectorAll("input[type=checkbox]").forEach(cb => {
-        cb.onchange = async () => {
-          await toggleReminder(cb.dataset.id, cb.checked);
-          // Refresh reminders after toggle
-          getRemindersOnce(apiaryId).then(data => {
-            reminders = data;
-            renderCalendar();
-            showDayTasks(date);
-          }).catch(() => {});
-        };
-      });
-      container.querySelectorAll("[data-delete-reminder]").forEach(btn => {
-        btn.onclick = async () => {
-          if (!confirm("Delete this reminder?")) return;
-          try {
-            await deleteReminder(btn.dataset.deleteReminder);
-            getRemindersOnce(apiaryId).then(data => {
-              reminders = data;
-              renderCalendar();
-              showDayTasks(date);
-            }).catch(() => {});
-          } catch (e) {
-            alert("Error: " + e.message);
-          }
-        };
-      });
-    }
-
-    document.getElementById("btn-prev").onclick = () => {
-      currentMonth--;
-      if (currentMonth < 0) { currentMonth = 11; currentYear--; }
-      renderCalendar();
-    };
-    document.getElementById("btn-next").onclick = () => {
-      currentMonth++;
-      if (currentMonth > 11) { currentMonth = 0; currentYear++; }
-      renderCalendar();
-    };
-
-    window.addEventListener("beforeunload", () => {
-      if (unsubReminders) unsubReminders();
-      if (unsubHives) unsubHives();
     });
-  </script>
+    let day = 1;
+    for (let row = 0; row < 6; row++) {
+      const tr = document.createElement("tr");
+      for (let col = 0; col < 7; col++) {
+        const td = document.createElement("td");
+        td.className = "text-center p-1";
+        const isEmpty = (row === 0 && col < firstDay) || day > daysInMonth;
+        if (!isEmpty) {
+          const d = day;
+          const isToday = d === today.getDate() && currentMonth === today.getMonth() && currentYear === today.getFullYear();
+          const isSelected = selectedDate && d === selectedDate.getDate() && currentMonth === selectedDate.getMonth() && currentYear === selectedDate.getFullYear();
+          const hasDot = !!dayMap[d];
+          let cls = "w-9 h-9 rounded-full mx-auto flex flex-col items-center justify-center cursor-pointer text-sm font-medium transition-all relative ";
+          if (isSelected) cls += "bg-on-surface text-white";
+          else if (isToday) cls += "bg-primary text-white font-bold";
+          else cls += "hover:bg-surface-container-low text-on-surface";
+          td.innerHTML = `<div class="${cls}">
+            <span>${d}</span>
+            ${hasDot ? `<span class="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-primary'}"></span>` : ""}
+          </div>`;
+          td.querySelector("div").onclick = () => {
+            selectedDate = new Date(currentYear, currentMonth, d);
+            showDayTasks(selectedDate);
+            renderCalendar();
+          };
+          day++;
+        }
+        tr.appendChild(td);
+      }
+      body.appendChild(tr);
+      if (day > daysInMonth) break;
+    }
+  }
+
+  function showDayTasks(date) {
+    const label = document.getElementById("selected-date-label");
+    label.textContent = date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+    const container = document.getElementById("day-tasks");
+    const dayTasks = reminders.filter(r => {
+      if (!r.dueDate) return false;
+      const d = r.dueDate.toDate ? r.dueDate.toDate() : new Date(r.dueDate);
+      return d.getFullYear() === date.getFullYear() && d.getMonth() === date.getMonth() && d.getDate() === date.getDate();
+    });
+    if (dayTasks.length === 0) { container.innerHTML = `<p class="text-on-surface-variant text-sm">No reminders for this day.</p>`; return; }
+    container.innerHTML = dayTasks.map(r => {
+      const hiveName = hiveNameMap[r.hiveId] || "Unknown Hive";
+      return `<div class="flex items-center gap-4 p-4 bg-surface-container-low rounded-lg border border-outline-variant/10">
+        <input type="checkbox" data-id="${r.id}" ${r.done ? "checked" : ""} class="w-5 h-5 rounded border-outline-variant text-primary focus:ring-primary/20">
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-on-surface">${r.text}</p>
+          <p class="text-xs text-on-surface-variant">${hiveName}</p>
+        </div>
+        <button data-delete-id="${r.id}" class="p-2 hover:bg-surface-container rounded-full transition-colors">
+          <span class="material-symbols-outlined text-sm text-on-surface-variant">delete</span>
+        </button>
+      </div>`;
+    }).join("");
+    container.querySelectorAll("input[type=checkbox]").forEach(cb => {
+      cb.onchange = async () => {
+        await toggleReminder(cb.dataset.id, cb.checked);
+        getRemindersOnce(apiaryId).then(data => { reminders = data; renderCalendar(); showDayTasks(date); renderUndatedTodos(); }).catch(() => {});
+      };
+    });
+    container.querySelectorAll("[data-delete-id]").forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm("Delete this reminder?")) return;
+        try {
+          await deleteReminder(btn.dataset.deleteId);
+          getRemindersOnce(apiaryId).then(data => { reminders = data; renderCalendar(); showDayTasks(date); renderUndatedTodos(); }).catch(() => {});
+        } catch (e) { alert("Error: " + e.message); }
+      };
+    });
+  }
+
+  function renderUndatedTodos() {
+    // todos without dueDate are shown here — currently reminders with no date
+    const undated = reminders.filter(r => !r.dueDate && !r.done);
+    const container = document.getElementById("undated-todos");
+    if (undated.length === 0) { container.innerHTML = `<p class="text-on-surface-variant text-sm text-center py-4">No undated to-dos.</p>`; return; }
+    container.innerHTML = undated.map(r => {
+      const hiveName = hiveNameMap[r.hiveId] || "Unknown Hive";
+      return `<div class="flex items-center gap-4 p-4 bg-surface-container-lowest rounded-lg border border-outline-variant/10 shadow-sm">
+        <div class="w-1 h-8 rounded-full bg-purple-400 flex-shrink-0"></div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-on-surface">${r.text}</p>
+          <p class="text-xs text-on-surface-variant">${hiveName}</p>
+        </div>
+        <span class="text-[9px] font-bold bg-purple-100 text-purple-700 px-2.5 py-1 rounded-full uppercase tracking-wider flex-shrink-0">todo</span>
+      </div>`;
+    }).join("");
+  }
+
+  document.getElementById("btn-prev").onclick = () => {
+    currentMonth--; if (currentMonth < 0) { currentMonth = 11; currentYear--; } renderCalendar();
+  };
+  document.getElementById("btn-next").onclick = () => {
+    currentMonth++; if (currentMonth > 11) { currentMonth = 0; currentYear++; } renderCalendar();
+  };
+
+  window.addEventListener("beforeunload", () => {
+    if (unsubReminders) unsubReminders();
+    if (unsubHives) unsubHives();
+  });
+</script>
 </body>
 </html>

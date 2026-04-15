@@ -1,38 +1,28 @@
 // ui.js — Shared UI utilities
 
-// ── Invite / ID helpers ────────────────────────────────────────────────────────
-
 export function generateInviteCode() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
-
 export function generateLocalId() {
   return `local_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 }
-
-// ── Date formatting ────────────────────────────────────────────────────────────
 
 export function formatDate(ts) {
   if (!ts) return "Never";
   const d = ts.toDate ? ts.toDate() : new Date(ts);
   return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
-
 export function formatDateTime(ts) {
   if (!ts) return "Never";
   const d = ts.toDate ? ts.toDate() : new Date(ts);
   return d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
-// ── Messaging ──────────────────────────────────────────────────────────────────
-
 export function showMsg(el, msg, isError = false) {
   if (!el) return;
   el.textContent = msg;
   el.className = isError ? "error-msg" : "success-msg";
 }
-
-// ── Clipboard ──────────────────────────────────────────────────────────────────
 
 export async function copyToClipboard(text) {
   if (navigator.clipboard && window.isSecureContext) {
@@ -50,8 +40,6 @@ export async function copyToClipboard(text) {
   } catch (_) { return false; }
 }
 
-// ── Sync banner ────────────────────────────────────────────────────────────────
-
 export function updateSyncBanner(count, customMsg) {
   const banner = document.getElementById("sync-banner");
   if (!banner) return;
@@ -67,40 +55,15 @@ export function updateSyncBanner(count, customMsg) {
   }
 }
 
-// ── Bottom navigation ──────────────────────────────────────────────────────────
-
+// ── Bottom navigation (Material Symbols style) ────────────────────────────────
 export function buildNav(containerId) {
   const nav = document.getElementById(containerId);
   if (!nav) return;
 
   const links = [
-    {
-      href: "/index.html",
-      label: "Hives",
-      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
-        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-        <path d="M2 17l10 5 10-5"/>
-        <path d="M2 12l10 5 10-5"/>
-      </svg>`,
-    },
-    {
-      href: "/calendar.html",
-      label: "Calendar",
-      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
-        <rect x="3" y="4" width="18" height="18" rx="2"/>
-        <line x1="16" y1="2" x2="16" y2="6"/>
-        <line x1="8" y1="2" x2="8" y2="6"/>
-        <line x1="3" y1="10" x2="21" y2="10"/>
-      </svg>`,
-    },
-    {
-      href: "/settings.html",
-      label: "Settings",
-      icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-      </svg>`,
-    },
+    { href: "/index.html",    label: "Apiaries",  icon: "grid_view" },
+    { href: "/calendar.html", label: "Calendar",  icon: "calendar_month" },
+    { href: "/settings.html", label: "Settings",  icon: "settings" },
   ];
 
   const currentPath = window.location.pathname;
@@ -110,27 +73,25 @@ export function buildNav(containerId) {
       currentPath === l.href ||
       currentPath.endsWith(l.href.replace(/^\//, "")) ||
       (currentPath === "/" && l.href === "/index.html");
-    return `<a href="${l.href}" class="nav-item${isActive ? " active" : ""}"${isActive ? ' aria-current="page"' : ""}>
-      <span class="nav-icon">${l.icon}</span>
-      <span class="nav-label">${l.label}</span>
+    return `<a href="${l.href}" class="${isActive
+      ? "flex flex-col items-center justify-center bg-orange-100 text-orange-800 rounded-full px-5 py-2"
+      : "flex flex-col items-center justify-center text-zinc-500 p-2 hover:bg-zinc-100 rounded-full"
+    } active:scale-90 transition-all duration-300 ease-out no-underline" style="text-decoration:none">
+      <span class="material-symbols-outlined" style="font-size:22px;font-variation-settings:'FILL' ${isActive ? 1 : 0},'wght' 400,'GRAD' 0,'opsz' 24">${l.icon}</span>
+      <span style="font-size:11px;font-weight:500;margin-top:2px">${l.label}</span>
     </a>`;
   }).join("");
 }
 
 // ── Modal confirm helper ───────────────────────────────────────────────────────
-
-/**
- * Show a confirmation modal, resolve true/false.
- * Page needs: #confirm-modal, #confirm-title, #confirm-message, #confirm-ok, #confirm-cancel
- */
 export function showConfirm(title, message, okLabel = "Confirm") {
   return new Promise(resolve => {
     const modal = document.getElementById("confirm-modal");
     if (!modal) { resolve(window.confirm(`${title}\n\n${message}`)); return; }
 
-    const titleEl = document.getElementById("confirm-title");
-    const msgEl   = document.getElementById("confirm-message");
-    const okBtn   = document.getElementById("confirm-ok");
+    const titleEl   = document.getElementById("confirm-title");
+    const msgEl     = document.getElementById("confirm-message");
+    const okBtn     = document.getElementById("confirm-ok");
     const cancelBtn = document.getElementById("confirm-cancel");
 
     if (titleEl) titleEl.textContent = title;
@@ -140,17 +101,17 @@ export function showConfirm(title, message, okLabel = "Confirm") {
 
     const cleanup = result => {
       modal.classList.add("hidden");
-      okBtn    && okBtn.removeEventListener("click", onOk);
+      okBtn     && okBtn.removeEventListener("click", onOk);
       cancelBtn && cancelBtn.removeEventListener("click", onCancel);
       modal.removeEventListener("click", onBackdrop);
       resolve(result);
     };
-    const onOk      = () => cleanup(true);
-    const onCancel  = () => cleanup(false);
+    const onOk       = () => cleanup(true);
+    const onCancel   = () => cleanup(false);
     const onBackdrop = e => { if (e.target === modal) cleanup(false); };
 
-    okBtn    && okBtn.addEventListener("click",    onOk,       { once: true });
-    cancelBtn && cancelBtn.addEventListener("click", onCancel,  { once: true });
+    okBtn     && okBtn.addEventListener("click",    onOk,      { once: true });
+    cancelBtn && cancelBtn.addEventListener("click", onCancel, { once: true });
     modal.addEventListener("click", onBackdrop);
   });
 }
